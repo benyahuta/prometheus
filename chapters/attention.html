@@ -44,8 +44,9 @@
   <h3 class="sec-title">① the input <span class="math">X</span></h3>
   <div class="panel">
     <div class="mat-row">
-      <div class="mat-fig"><div class="mat-label">X&nbsp;&nbsp;(4 tokens × 4 dims)</div><div class="matrix" id="mat-x"></div><div class="mat-sub">one row per token</div></div>
+      <div class="mat-fig"><div class="mat-label">X&nbsp;&nbsp;(4 tokens × 4 dims)</div><div class="matrix" id="mat-x"></div><div class="mat-sub">one row per token — dense and messy, like real embeddings</div></div>
     </div>
+    <p class="caption">4 dims is for legibility — GPT-3's rows are <b>12,288 numbers long</b>. same picture, ~3,000× wider.</p>
   </div>
 
   <h3 class="sec-title">② project: three views of every token</h3>
@@ -102,17 +103,38 @@
 <script>
 const TOKENS = ["the", "robot", "ate", "apples"];
 
-/* near one-hot embeddings, so the products stay legible */
+/* dense, realistic-looking embeddings (real ones are just like this, only 12,288 wide) */
 const X = [
-  [1.0, 0.1, 0.0, 0.0],
-  [0.1, 1.0, 0.1, 0.0],
-  [0.0, 0.1, 1.0, 0.1],
-  [0.0, 0.0, 0.1, 1.0],
+  [ 0.62, -0.45,  0.12,  0.71],
+  [-0.28,  0.83,  0.55, -0.19],
+  [ 0.44,  0.21, -0.72,  0.38],
+  [-0.57, -0.11,  0.42,  0.66],
 ];
-/* learned projections (4 → 3), hand-tuned so "ate" seeks nouns */
-const WQ = [[0.3,0,0],[0.4,1.2,0],[1.6,0.2,-0.5],[1.2,0.8,0]];
-const WK = [[0.2,0,0],[2.0,0.4,0],[0,1.5,0.5],[1.8,-0.6,0.3]];
-const WV = [[0.1,0,0.1],[1.2,0.3,-0.4],[0.2,1.1,0.3],[0.9,-0.2,0.8]];
+/* the q/k/v vectors we want each token to end up with ("ate" seeks nouns) */
+const Qd = [[0.3,0,0],[0.4,1.2,0],[1.6,0.2,-0.5],[1.2,0.8,0]];
+const Kd = [[0.2,0,0],[2.0,0.4,0],[0,1.5,0.5],[1.8,-0.6,0.3]];
+const Vd = [[0.1,0,0.1],[1.2,0.3,-0.4],[0.2,1.1,0.3],[0.9,-0.2,0.8]];
+
+/* solve for the weights that produce them: W = X⁻¹·desired (Gaussian elimination) */
+function inverse(M) {
+  const n = M.length;
+  const A = M.map((r, i) => [...r, ...r.map((_, j) => (i === j ? 1 : 0))]);
+  for (let c = 0; c < n; c++) {
+    let piv = c;
+    for (let r = c + 1; r < n; r++) if (Math.abs(A[r][c]) > Math.abs(A[piv][c])) piv = r;
+    [A[c], A[piv]] = [A[piv], A[c]];
+    const p = A[c][c];
+    for (let j = 0; j < 2 * n; j++) A[c][j] /= p;
+    for (let r = 0; r < n; r++) {
+      if (r === c) continue;
+      const f = A[r][c];
+      for (let j = 0; j < 2 * n; j++) A[r][j] -= f * A[c][j];
+    }
+  }
+  return A.map((r) => r.slice(n));
+}
+const Xinv = inverse(X);
+const WQ = matmul(Xinv, Qd), WK = matmul(Xinv, Kd), WV = matmul(Xinv, Vd);
 
 const Q = matmul(X, WQ), K = matmul(X, WK), V = matmul(X, WV);
 const dk = 3;
