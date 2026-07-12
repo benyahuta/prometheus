@@ -17,7 +17,7 @@
 <main class="deep-main">
   <div class="ch-head">
     <h2>Queries, Keys &amp; <span class="acc-blue">Values</span></h2>
-    <p class="caption">every number below is a real matrix product — “the robot ate apples”, computed by hand-sized matrices.</p>
+    <p class="caption">“the robot ate apples”, computed for real — <b>scroll, and the multiplications happen in front of you</b>.</p>
   </div>
 
   <div class="cards">
@@ -49,25 +49,26 @@
     <p class="caption">4 dims is for legibility — GPT-3's rows are <b>12,288 numbers long</b>. same picture, ~3,000× wider.</p>
   </div>
 
-  <h3 class="sec-title">② project: three views of every token</h3>
+  <h3 class="sec-title">② project: <span style="color:var(--blue)">Q</span> = X·W<sub>Q</sub></h3>
   <div class="panel">
-    <div class="mat-row">
-      <div class="mat-fig"><div class="mat-label" style="color:var(--blue)">Q = X·W<sub>Q</sub></div><div class="matrix" id="mat-q"></div><div class="mat-sub">what each seeks</div></div>
-      <div class="mat-fig"><div class="mat-label" style="color:var(--green)">K = X·W<sub>K</sub></div><div class="matrix" id="mat-k"></div><div class="mat-sub">what each offers</div></div>
-      <div class="mat-fig"><div class="mat-label" style="color:var(--gold)">V = X·W<sub>V</sub></div><div class="matrix" id="mat-v"></div><div class="mat-sub">what each hands over</div></div>
-    </div>
-    <p class="caption">W<sub>Q</sub>, W<sub>K</sub>, W<sub>V</sub> are <b>the learned weights</b> — everything after this is pure arithmetic.</p>
+    <div id="anim-q"></div>
+  </div>
+  <div class="panel">
+    <div id="anim-k"></div>
+  </div>
+  <div class="panel">
+    <div id="anim-v"></div>
+    <p class="caption">W<sub>Q</sub>, W<sub>K</sub>, W<sub>V</sub> are <b>the learned weights</b> — training tunes these numbers; everything else on this page is pure arithmetic.</p>
   </div>
 
   <h3 class="sec-title">③ scores: every query × every key</h3>
   <div class="panel">
-    <div class="toggle-row">
+    <div id="anim-s"></div>
+    <div class="toggle-row" style="margin-top:14px">
       <button class="pill-toggle active" id="mask-toggle">causal mask: on</button>
-      <span class="dim-note">no peeking at the future</span>
+      <span class="dim-note">no peeking at the future — masked cells become −∞</span>
     </div>
-    <div class="mat-row">
-      <div class="mat-fig"><div class="mat-label">S = QK<sup>T</sup>/√d<sub>k</sub></div><div class="matrix" id="mat-s"></div><div class="mat-sub">row asks · column answers — watch row <b>ate</b> light up at <b>robot</b></div></div>
-    </div>
+    <p class="caption">each cell of S is <b>one dot product</b>: a row of Q (what word <span class="math">i</span> seeks) against a column of K<sup>T</sup> (what word <span class="math">j</span> offers), shrunk by √d<sub>k</sub>. watch row <b>ate</b> spike at column <b>robot</b>.</p>
   </div>
 
   <h3 class="sec-title">④ softmax each row → attention weights</h3>
@@ -80,9 +81,7 @@
 
   <h3 class="sec-title">⑤ output: a weighted mix of values</h3>
   <div class="panel">
-    <div class="mat-row">
-      <div class="mat-fig"><div class="mat-label">O = A·V</div><div class="matrix" id="mat-o"></div><div class="mat-sub">the updated token vectors</div></div>
-    </div>
+    <div id="anim-o"></div>
     <p class="readout" id="o-story"></p>
   </div>
 
@@ -141,42 +140,114 @@ const dk = 3;
 const S = matmul(Q, transpose(K)).map((row) => row.map((v) => v / Math.sqrt(dk)));
 
 let masked = true;
+let sDone = false, oDone = false;
+let sAnim = null;
 
 matrixEl("#mat-x", X, { rows: TOKENS, max: 1 });
-matrixEl("#mat-q", Q, { rows: TOKENS, max: 2 });
-matrixEl("#mat-k", K, { rows: TOKENS, max: 2 });
-matrixEl("#mat-v", V, { rows: TOKENS, max: 1.3 });
 
-function render() {
-  matrixEl("#mat-s", S, {
+/* ---------- step ②: X·W animations (scroll-triggered) ---------- */
+const sub = (t) => `<sub>${t}</sub>`;
+function projTermText(wName) {
+  return (i, j, arow, bcol, sum) =>
+    `x${sub(TOKENS[i])} · ${wName}[:,${j + 1}] = ` +
+    arow.map((a, k) => `(${a.toFixed(2)})(${bcol[k].toFixed(2)})`).join(" + ") +
+    ` = <b>${sum.toFixed(2)}</b>`;
+}
+matMulAnim("#anim-q", {
+  A: X, B: WQ, aRows: TOKENS,
+  aLabel: "X", bLabel: "W<sub>Q</sub> <span style='color:var(--faint);font-style:normal;font-size:.75rem'>(learned)</span>",
+  cLabel: "<span style='color:var(--blue)'>Q</span>", cSub: "what each token seeks",
+  maxA: 1, maxB: 2.6, maxC: 2, stepMs: 190,
+  termText: projTermText("W<sub>Q</sub>"),
+  doneText: "each row of Q: that token's <b>question</b>, as 3 numbers.",
+});
+matMulAnim("#anim-k", {
+  A: X, B: WK, aRows: TOKENS,
+  aLabel: "X", bLabel: "W<sub>K</sub> <span style='color:var(--faint);font-style:normal;font-size:.75rem'>(learned)</span>",
+  cLabel: "<span style='color:var(--green)'>K</span>", cSub: "what each token offers",
+  maxA: 1, maxB: 3.2, maxC: 2.2, stepMs: 150,
+  termText: projTermText("W<sub>K</sub>"),
+  doneText: "each row of K: that token's <b>advertisement</b>.",
+});
+matMulAnim("#anim-v", {
+  A: X, B: WV, aRows: TOKENS,
+  aLabel: "X", bLabel: "W<sub>V</sub> <span style='color:var(--faint);font-style:normal;font-size:.75rem'>(learned)</span>",
+  cLabel: "<span style='color:var(--gold)'>V</span>", cSub: "what each token hands over",
+  maxA: 1, maxB: 2.2, maxC: 1.3, stepMs: 150,
+  termText: projTermText("W<sub>V</sub>"),
+  doneText: "each row of V: the <b>payload</b> delivered if this token wins attention.",
+});
+
+/* ---------- step ③: S = QKᵀ/√dk, every dot product animated ---------- */
+sAnim = matMulAnim("#anim-s", {
+  A: Q, B: transpose(K), aRows: TOKENS, bCols: TOKENS,
+  aLabel: "<span style='color:var(--blue)'>Q</span>",
+  bLabel: "<span style='color:var(--green)'>K</span><sup>T</sup>",
+  cLabel: "S = QK<sup>T</sup>/√d<sub>k</sub>",
+  cSub: "row asks · column answers",
+  maxA: 2, maxB: 2.2, maxC: 2.2, stepMs: 300,
+  scaleC: (v) => v / Math.sqrt(dk),
+  termText: (i, j, arow, bcol, sum, c) =>
+    `q${sub(TOKENS[i])} · k${sub(TOKENS[j])} = ` +
+    arow.map((a, k) => `(${a.toFixed(2)})(${bcol[k].toFixed(2)})`).join(" + ") +
+    ` = ${sum.toFixed(2)} &nbsp;→&nbsp; ÷√${dk} = <b>${c.toFixed(2)}</b>`,
+  doneText: "16 dot products — row <b>ate</b> spiked at column <b>robot</b>. now the mask:",
+  onDone: () => { sDone = true; renderS(); renderDownstream(); },
+});
+
+function renderS() {
+  matrixEl(sAnim.elC, S, {
     rows: TOKENS, cols: TOKENS, max: 2.2,
     fmt: (v, i, j) => (masked && j > i ? "−∞" : v.toFixed(2)),
     colorFn: (v, i, j) => (masked && j > i ? C.panel2 : heat(v, 2.2)),
     cellRef: (cell, i, j) => { if (masked && j > i) cell.classList.add("masked"); },
   });
+}
 
-  const A = S.map((row, i) =>
+/* ---------- step ④ weights + step ⑤ output ---------- */
+function attnWeights() {
+  return S.map((row, i) =>
     softmaxArr(row.map((v, j) => (masked && j > i ? -Infinity : v)))
   );
+}
+
+function renderDownstream() {
+  const A = attnWeights();
   matrixEl("#mat-a", A, {
     rows: TOKENS, cols: TOKENS,
     fmt: (v) => (v < 0.005 ? "0%" : Math.round(v * 100) + "%"),
     colorFn: (v) => heatSeq(Math.min(1, v * 1.15)),
     cellRef: (cell, i, j) => { if (i === 2 && j === 1) cell.classList.add("hl"); },
   });
-
   const atePct = Math.round(A[2][1] * 100);
   $("#attn-read").innerHTML =
     `<b>ate</b> → <b>robot</b>: ${atePct}%` +
     (masked ? "" : " — mask off, so it can also peek ahead at <b>apples</b>");
+  buildOAnim(oDone); /* rebuild with current weights; re-animate fast if already seen */
+}
 
-  const O = matmul(A, V);
-  matrixEl("#mat-o", O, {
-    rows: TOKENS, max: 1.3,
-    cellRef: (cell, i) => { if (i === 2) cell.classList.add("hl"); },
+function buildOAnim(autorun) {
+  const A = attnWeights();
+  const anim = matMulAnim("#anim-o", {
+    A, B: V, aRows: TOKENS,
+    aLabel: "A <span style='color:var(--faint);font-style:normal;font-size:.75rem'>(attention weights)</span>",
+    bLabel: "<span style='color:var(--gold)'>V</span>",
+    cLabel: "O = A·V", cSub: "the updated token vectors",
+    maxA: 1, maxB: 1.3, maxC: 1.3, stepMs: 190,
+    optsA: { colorFn: (v) => heatSeq(Math.min(1, v * 1.15)) },
+    termText: (i, j, arow, bcol, sum) =>
+      `weights${sub(TOKENS[i])} · v-col ${j + 1} = ` +
+      arow.map((a, k) => `(${a.toFixed(2)})(${bcol[k].toFixed(2)})`).join(" + ") +
+      ` = <b>${sum.toFixed(2)}</b>`,
+    doneText: "every output row = a blend of value rows, weighted by attention.",
+    autoStart: !autorun,
+    onDone: () => {
+      oDone = true;
+      $("#o-story").innerHTML =
+        `<b>ate</b>'s output ≈ <b>robot</b>'s value row [${V[1].map((v) => v.toFixed(2)).join(", ")}] — the verb now knows who's eating.`;
+    },
   });
-  $("#o-story").innerHTML =
-    `<b>ate</b>'s output ≈ <b>robot</b>'s value row [${V[1].map((v) => v.toFixed(2)).join(", ")}] — the verb now knows who's eating.`;
+  if (autorun) anim.run(true);
 }
 
 $("#mask-toggle").addEventListener("click", () => {
@@ -184,9 +255,10 @@ $("#mask-toggle").addEventListener("click", () => {
   const b = $("#mask-toggle");
   b.textContent = "causal mask: " + (masked ? "on" : "off");
   b.classList.toggle("active", masked);
-  render();
+  if (sDone) renderS();
+  renderDownstream();
 });
-render();
+renderDownstream();
 
 /* --- three mini heads, each with a different learned pattern --- */
 (function () {

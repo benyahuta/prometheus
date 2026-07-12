@@ -89,3 +89,106 @@ function matrixEl(container, M, opts = {}) {
   });
   return el;
 }
+
+/* ============================================================
+   Scroll-triggered matrix-multiplication animation
+   Renders  A × B = C  and fills C cell by cell, highlighting the
+   row of A and column of B being combined, with the arithmetic
+   spelled out below. Starts when scrolled into view (once).
+   ============================================================ */
+function onScrollOnce(el, fn, threshold = 0.35) {
+  const obs = new IntersectionObserver((entries) => {
+    entries.forEach((e) => {
+      if (e.isIntersecting) { obs.disconnect(); fn(); }
+    });
+  }, { threshold });
+  obs.observe(el);
+}
+
+function matMulAnim(host, cfg) {
+  host = typeof host === "string" ? $(host) : host;
+  host.innerHTML = "";
+  const row = document.createElement("div");
+  row.className = "mat-row";
+  const mkFig = (label, sub) => {
+    const f = document.createElement("div");
+    f.className = "mat-fig";
+    f.innerHTML = `<div class="mat-label">${label}</div><div class="matrix"></div>` +
+      (sub ? `<div class="mat-sub">${sub}</div>` : "");
+    row.appendChild(f);
+    return f.querySelector(".matrix");
+  };
+  const elA = mkFig(cfg.aLabel, cfg.aSub);
+  const op1 = document.createElement("div"); op1.className = "mat-op"; op1.textContent = "×"; row.appendChild(op1);
+  const elB = mkFig(cfg.bLabel, cfg.bSub);
+  const op2 = document.createElement("div"); op2.className = "mat-op"; op2.textContent = "="; row.appendChild(op2);
+  const elC = mkFig(cfg.cLabel, cfg.cSub);
+  host.appendChild(row);
+  const read = document.createElement("div");
+  read.className = "mm-read";
+  read.innerHTML = cfg.idleText || "&nbsp;";
+  host.appendChild(read);
+  const replay = document.createElement("button");
+  replay.className = "link-btn";
+  replay.textContent = "replay ▶";
+  replay.style.display = "none";
+  host.appendChild(replay);
+
+  const A = cfg.A, B = cfg.B;
+  const Craw = matmul(A, B);
+  const Cm = cfg.scaleC ? Craw.map((r) => r.map(cfg.scaleC)) : Craw;
+  const cw = cfg.cellW || 44, chh = cfg.cellH || 30;
+  const aCells = [], bCells = [], cCells = [];
+  matrixEl(elA, A, { rows: cfg.aRows, max: cfg.maxA || 1, cellW: cw, cellH: chh,
+    fmt: (v) => v.toFixed(2), cellRef: (c, i, j) => { (aCells[i] ??= [])[j] = c; }, ...(cfg.optsA || {}) });
+  matrixEl(elB, B, { cols: cfg.bCols, max: cfg.maxB || 1, cellW: cw, cellH: chh,
+    fmt: (v) => v.toFixed(2), cellRef: (c, i, j) => { (bCells[i] ??= [])[j] = c; }, ...(cfg.optsB || {}) });
+  matrixEl(elC, Cm, { rows: cfg.aRows, cols: cfg.bCols, cellW: cw, cellH: chh,
+    fmt: () => "", colorFn: () => "transparent", cellRef: (c, i, j) => { (cCells[i] ??= [])[j] = c; } });
+  cCells.flat().forEach((c) => c.classList.add("mm-empty"));
+
+  let gen = 0;
+  const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+  const fmtC = cfg.fmtC || ((v) => v.toFixed(2));
+  const colorC = cfg.colorC || ((v) => heat(v, cfg.maxC || 1));
+
+  async function run(fast) {
+    const myGen = ++gen;
+    cCells.flat().forEach((c) => {
+      c.textContent = ""; c.style.background = "transparent"; c.classList.add("mm-empty");
+    });
+    const stepMs = fast ? 70 : (cfg.stepMs || 210);
+    for (let i = 0; i < A.length; i++) {
+      for (let j = 0; j < B[0].length; j++) {
+        if (myGen !== gen) return;
+        aCells.flat().forEach((c) => c.classList.remove("mm-hla"));
+        bCells.flat().forEach((c) => c.classList.remove("mm-hlb"));
+        aCells[i].forEach((c) => c.classList.add("mm-hla"));
+        bCells.forEach((r) => r[j].classList.add("mm-hlb"));
+        const terms = A[i].map((a, k) => a * B[k][j]);
+        const sum = terms.reduce((s, t) => s + t, 0);
+        read.innerHTML = cfg.termText
+          ? cfg.termText(i, j, A[i], B.map((r) => r[j]), sum, Cm[i][j])
+          : A[i].map((a, k) => `(${a.toFixed(2)})(${B[k][j].toFixed(2)})`).join(" + ") +
+            ` = <b>${sum.toFixed(2)}</b>`;
+        const cell = cCells[i][j];
+        cell.classList.remove("mm-empty");
+        cell.classList.add("mm-fill");
+        cell.textContent = fmtC(Cm[i][j]);
+        cell.style.background = colorC(Cm[i][j], i, j);
+        await sleep(stepMs);
+        cell.classList.remove("mm-fill");
+      }
+    }
+    if (myGen !== gen) return;
+    aCells.flat().forEach((c) => c.classList.remove("mm-hla"));
+    bCells.flat().forEach((c) => c.classList.remove("mm-hlb"));
+    read.innerHTML = cfg.doneText || "&nbsp;";
+    replay.style.display = "";
+    cfg.onDone?.(elC);
+  }
+
+  replay.addEventListener("click", () => run(false));
+  if (cfg.autoStart !== false) onScrollOnce(host, () => run(false));
+  return { run, elC, C: Cm };
+}

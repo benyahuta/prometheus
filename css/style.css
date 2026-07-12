@@ -585,3 +585,16 @@ input[type="range"] {
 .big-stat { font-size: 2.2rem; color: var(--yellow); font-variant-numeric: tabular-nums; line-height: 1.2; }
 .memory-bar { display: flex; height: 30px; border-radius: 6px; overflow: hidden; border: 1px solid var(--line); background: var(--panel-2); margin: 12px 0 6px; }
 .memory-fill { background: linear-gradient(90deg, rgba(88,196,221,.7), rgba(252,98,85,.8)); transition: width .2s; }
+
+/* matrix-multiplication animation */
+.mm-read {
+  font-family: var(--serif); font-size: 0.98rem; color: var(--muted);
+  min-height: 1.8em; margin: 10px 0 4px;
+  font-variant-numeric: tabular-nums;
+}
+.mm-read b { color: var(--yellow); font-weight: 600; }
+.mcell { transition: transform .12s, background .2s; }
+.mcell.mm-hla { outline: 2px solid var(--blue); outline-offset: -2px; }
+.mcell.mm-hlb { outline: 2px solid var(--green); outline-offset: -2px; }
+.mcell.mm-fill { outline: 2px solid var(--yellow); outline-offset: -2px; transform: scale(1.1); }
+.mcell.mm-empty { border: 1px dashed var(--line); }
