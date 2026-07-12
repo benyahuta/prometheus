@@ -157,7 +157,7 @@ function matMulAnim(host, cfg) {
     cCells.flat().forEach((c) => {
       c.textContent = ""; c.style.background = "transparent"; c.classList.add("mm-empty");
     });
-    const stepMs = fast ? 70 : (cfg.stepMs || 210);
+    const stepMs = fast ? 100 : (cfg.stepMs || 320);
     for (let i = 0; i < A.length; i++) {
       for (let j = 0; j < B[0].length; j++) {
         if (myGen !== gen) return;
@@ -172,12 +172,17 @@ function matMulAnim(host, cfg) {
           : A[i].map((a, k) => `(${a.toFixed(2)})(${B[k][j].toFixed(2)})`).join(" + ") +
             ` = <b>${sum.toFixed(2)}</b>`;
         const cell = cCells[i][j];
+        /* phase 1: point at the destination cell, so row × col → cell is unmistakable */
+        cell.classList.add("mm-target");
+        await sleep(stepMs * 0.45);
+        if (myGen !== gen) return;
+        /* phase 2: the value lands */
         cell.classList.remove("mm-empty");
         cell.classList.add("mm-fill");
         cell.textContent = fmtC(Cm[i][j]);
         cell.style.background = colorC(Cm[i][j], i, j);
-        await sleep(stepMs);
-        cell.classList.remove("mm-fill");
+        await sleep(stepMs * 0.55);
+        cell.classList.remove("mm-fill", "mm-target");
       }
     }
     if (myGen !== gen) return;

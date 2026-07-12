@@ -598,3 +598,4 @@ input[type="range"] {
 .mcell.mm-hlb { outline: 2px solid var(--green); outline-offset: -2px; }
 .mcell.mm-fill { outline: 2px solid var(--yellow); outline-offset: -2px; transform: scale(1.1); }
 .mcell.mm-empty { border: 1px dashed var(--line); }
+.mcell.mm-target { outline: 2px dashed var(--yellow); outline-offset: -2px; }

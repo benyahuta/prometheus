@@ -85,7 +85,13 @@
     <p class="readout" id="o-story"></p>
   </div>
 
-  <h3 class="sec-title">⑥ many heads, in parallel</h3>
+  <h3 class="sec-title">⑥ project back to the stream: O·W<sub>O</sub></h3>
+  <div class="panel">
+    <div id="anim-wo"></div>
+    <p class="caption">the head worked in 3 dims (<span class="math">d<sub>k</sub></span>); W<sub>O</sub> carries its verdict <b>back to the full 4 dims</b> of the residual stream — this is the correction that gets <b>added</b> to each token's vector. no dimension was harmed.</p>
+  </div>
+
+  <h3 class="sec-title">⑦ many heads, in parallel</h3>
   <div class="panel">
     <div class="mat-row" id="heads-row"></div>
     <div class="formula" style="margin-bottom:0">MultiHead(X) = concat(head<sub>1</sub>, …, head<sub>h</sub>) · W<sub>O</sub></div>
@@ -147,8 +153,10 @@ matrixEl("#mat-x", X, { rows: TOKENS, max: 1 });
 
 /* ---------- step ②: X·W animations (scroll-triggered) ---------- */
 const sub = (t) => `<sub>${t}</sub>`;
-function projTermText(wName) {
+const dest = (m, r, c) => `<b>${m}[${r}, ${c}]</b> = `;
+function projTermText(wName, outName) {
   return (i, j, arow, bcol, sum) =>
+    dest(outName, TOKENS[i], j + 1) +
     `x${sub(TOKENS[i])} · ${wName}[:,${j + 1}] = ` +
     arow.map((a, k) => `(${a.toFixed(2)})(${bcol[k].toFixed(2)})`).join(" + ") +
     ` = <b>${sum.toFixed(2)}</b>`;
@@ -157,24 +165,24 @@ matMulAnim("#anim-q", {
   A: X, B: WQ, aRows: TOKENS,
   aLabel: "X", bLabel: "W<sub>Q</sub> <span style='color:var(--faint);font-style:normal;font-size:.75rem'>(learned)</span>",
   cLabel: "<span style='color:var(--blue)'>Q</span>", cSub: "what each token seeks",
-  maxA: 1, maxB: 2.6, maxC: 2, stepMs: 190,
-  termText: projTermText("W<sub>Q</sub>"),
+  maxA: 1, maxB: 2.6, maxC: 2, stepMs: 340,
+  termText: projTermText("W<sub>Q</sub>", "Q"),
   doneText: "each row of Q: that token's <b>question</b>, as 3 numbers.",
 });
 matMulAnim("#anim-k", {
   A: X, B: WK, aRows: TOKENS,
   aLabel: "X", bLabel: "W<sub>K</sub> <span style='color:var(--faint);font-style:normal;font-size:.75rem'>(learned)</span>",
   cLabel: "<span style='color:var(--green)'>K</span>", cSub: "what each token offers",
-  maxA: 1, maxB: 3.2, maxC: 2.2, stepMs: 150,
-  termText: projTermText("W<sub>K</sub>"),
+  maxA: 1, maxB: 3.2, maxC: 2.2, stepMs: 300,
+  termText: projTermText("W<sub>K</sub>", "K"),
   doneText: "each row of K: that token's <b>advertisement</b>.",
 });
 matMulAnim("#anim-v", {
   A: X, B: WV, aRows: TOKENS,
   aLabel: "X", bLabel: "W<sub>V</sub> <span style='color:var(--faint);font-style:normal;font-size:.75rem'>(learned)</span>",
   cLabel: "<span style='color:var(--gold)'>V</span>", cSub: "what each token hands over",
-  maxA: 1, maxB: 2.2, maxC: 1.3, stepMs: 150,
-  termText: projTermText("W<sub>V</sub>"),
+  maxA: 1, maxB: 2.2, maxC: 1.3, stepMs: 300,
+  termText: projTermText("W<sub>V</sub>", "V"),
   doneText: "each row of V: the <b>payload</b> delivered if this token wins attention.",
 });
 
@@ -185,9 +193,10 @@ sAnim = matMulAnim("#anim-s", {
   bLabel: "<span style='color:var(--green)'>K</span><sup>T</sup>",
   cLabel: "S = QK<sup>T</sup>/√d<sub>k</sub>",
   cSub: "row asks · column answers",
-  maxA: 2, maxB: 2.2, maxC: 2.2, stepMs: 300,
+  maxA: 2, maxB: 2.2, maxC: 2.2, stepMs: 480,
   scaleC: (v) => v / Math.sqrt(dk),
   termText: (i, j, arow, bcol, sum, c) =>
+    dest("S", TOKENS[i], TOKENS[j]) +
     `q${sub(TOKENS[i])} · k${sub(TOKENS[j])} = ` +
     arow.map((a, k) => `(${a.toFixed(2)})(${bcol[k].toFixed(2)})`).join(" + ") +
     ` = ${sum.toFixed(2)} &nbsp;→&nbsp; ÷√${dk} = <b>${c.toFixed(2)}</b>`,
@@ -226,16 +235,24 @@ function renderDownstream() {
   buildOAnim(oDone); /* rebuild with current weights; re-animate fast if already seen */
 }
 
+/* mixes the head back to the stream's 4 dims */
+const WO = [
+  [ 0.9, -0.2,  0.4,  0.1],
+  [-0.3,  1.1,  0.2, -0.5],
+  [ 0.2,  0.4, -0.8,  0.7],
+];
+
 function buildOAnim(autorun) {
   const A = attnWeights();
   const anim = matMulAnim("#anim-o", {
     A, B: V, aRows: TOKENS,
     aLabel: "A <span style='color:var(--faint);font-style:normal;font-size:.75rem'>(attention weights)</span>",
     bLabel: "<span style='color:var(--gold)'>V</span>",
-    cLabel: "O = A·V", cSub: "the updated token vectors",
-    maxA: 1, maxB: 1.3, maxC: 1.3, stepMs: 190,
+    cLabel: "O = A·V", cSub: "head output — 3 dims (d<sub>k</sub>), not the stream's 4",
+    maxA: 1, maxB: 1.3, maxC: 1.3, stepMs: 340,
     optsA: { colorFn: (v) => heatSeq(Math.min(1, v * 1.15)) },
     termText: (i, j, arow, bcol, sum) =>
+      dest("O", TOKENS[i], j + 1) +
       `weights${sub(TOKENS[i])} · v-col ${j + 1} = ` +
       arow.map((a, k) => `(${a.toFixed(2)})(${bcol[k].toFixed(2)})`).join(" + ") +
       ` = <b>${sum.toFixed(2)}</b>`,
@@ -245,7 +262,28 @@ function buildOAnim(autorun) {
       oDone = true;
       $("#o-story").innerHTML =
         `<b>ate</b>'s output ≈ <b>robot</b>'s value row [${V[1].map((v) => v.toFixed(2)).join(", ")}] — the verb now knows who's eating.`;
+      buildWOAnim(false);
     },
+  });
+  if (autorun) { anim.run(true); buildWOAnim(true); }
+}
+
+function buildWOAnim(autorun) {
+  const A = attnWeights();
+  const O = matmul(A, V);
+  const anim = matMulAnim("#anim-wo", {
+    A: O, B: WO, aRows: TOKENS,
+    aLabel: "O <span style='color:var(--faint);font-style:normal;font-size:.75rem'>(4 × 3)</span>",
+    bLabel: "W<sub>O</sub> <span style='color:var(--faint);font-style:normal;font-size:.75rem'>(3 × 4, learned)</span>",
+    cLabel: "ΔX = O·W<sub>O</sub>", cSub: "back to 4 dims — added to the residual stream",
+    maxA: 1.3, maxB: 1.2, maxC: 1.6, stepMs: 340,
+    termText: (i, j, arow, bcol, sum) =>
+      dest("ΔX", TOKENS[i], j + 1) +
+      `o${sub(TOKENS[i])} · W<sub>O</sub>[:,${j + 1}] = ` +
+      arow.map((a, k) => `(${a.toFixed(2)})(${bcol[k].toFixed(2)})`).join(" + ") +
+      ` = <b>${sum.toFixed(2)}</b>`,
+    doneText: "4 columns again — each token's correction, ready to be added to its stream vector.",
+    autoStart: !autorun,
   });
   if (autorun) anim.run(true);
 }
