@@ -1,0 +1,225 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Residual Streams &amp; MLPs — Inside the Transformer</title>
+<link rel="stylesheet" href="../css/style.css">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><circle cx='50' cy='50' r='42' fill='%2358C4DD'/></svg>">
+</head>
+<body>
+
+<header class="deep-head">
+  <a href="../index.html">← Inside the Transformer</a>
+  <span class="ch-num">Chapter 4 · Deep dive</span>
+</header>
+
+<main class="deep-main">
+  <div class="ch-head">
+    <h2>Residual streams &amp; <span class="acc-blue">MLPs</span></h2>
+    <p class="lede">
+      The tower on the main page showed blocks stacking. Inside each block are
+      two machines — attention, then an MLP — and one quiet architectural trick
+      that makes 96 layers trainable at all: nothing ever replaces the vector,
+      everything just <em>adds to it</em>.
+    </p>
+  </div>
+
+  <h3 class="sec-title">The residual stream</h3>
+  <p class="prose">
+    Each token's vector flows up through the network like a conveyor belt — the
+    <b>residual stream</b>. Attention and the MLP don't transform it outright;
+    they read it, compute a <em>correction</em>, and add that back:
+  </p>
+  <div class="formula">
+    x ← x + Attention(x) &nbsp;&nbsp;&nbsp; then &nbsp;&nbsp;&nbsp; x ← x + MLP(x)
+  </div>
+  <div class="panel">
+    <div class="plot-wrap"><svg id="res-diagram" viewBox="0 0 720 190"></svg></div>
+    <p class="panel-sub" style="margin:10px 0 0">
+      The straight line is the stream; each machine taps it, computes a delta,
+      and merges back in. If a block has nothing useful to say, it can output
+      ≈ 0 and the stream passes through untouched — which is exactly why
+      very deep stacks still train: gradients ride the straight line home.
+    </p>
+  </div>
+  <p class="prose">
+    (Before each machine the vector is standardized — <b>LayerNorm</b> — a
+    plumbing detail that keeps the numbers in a healthy range. Necessary, not
+    conceptually deep.)
+  </p>
+
+  <h3 class="sec-title">Inside the MLP</h3>
+  <p class="prose">
+    Attention moves information <em>between</em> positions; the MLP does the
+    thinking <em>within</em> each position, one token at a time. Its shape is
+    always the same: expand to about 4× the width, apply a nonlinearity, project
+    back down.
+  </p>
+  <div class="formula">MLP(x) = W<sub>down</sub> · GELU(W<sub>up</sub> · x) &nbsp;&nbsp;<span style="color:var(--faint);font-style:normal;font-size:.85rem">d → 4d → d</span></div>
+  <p class="prose">
+    The nonlinearity is the entire point — without it, any stack of matrices
+    collapses into one matrix, and the whole network could only draw straight
+    lines. Drag the input:
+  </p>
+  <div class="panel">
+    <div class="toggle-row">
+      <button class="pill-toggle active" data-act="gelu">GELU (what transformers use)</button>
+      <button class="pill-toggle" data-act="relu">ReLU (the classic)</button>
+    </div>
+    <div class="plot-wrap"><svg id="act-plot" viewBox="0 0 720 280"></svg></div>
+    <div class="slider-row">
+      <label for="act-x">input <span class="math">x</span></label>
+      <input type="range" id="act-x" min="-4" max="4" step="0.05" value="1.2">
+      <output id="act-out"></output>
+    </div>
+  </div>
+  <p class="note">
+    Interpretability research finds that MLP neurons often act as learned
+    <em>facts and features</em> — a neuron that fires for "words about
+    basketball", another for "the token is inside a URL". Roughly: attention
+    routes, MLPs know.
+  </p>
+
+  <h3 class="sec-title">Where the parameters live</h3>
+  <p class="prose">
+    Per block, attention costs about <span class="math">4d²</span> weights
+    (the three projections plus the output mix) and the MLP about
+    <span class="math">8d²</span> (up and down) — <b>the MLPs hold roughly
+    two-thirds of every block</b>. Add the embedding table and that's the whole
+    model. Drag the dials:
+  </p>
+  <div class="panel">
+    <div class="slider-row">
+      <label for="pb-layers">layers <span class="math">L</span></label>
+      <input type="range" id="pb-layers" min="1" max="96" value="12">
+      <output id="pb-layers-out">12</output>
+    </div>
+    <div class="slider-row">
+      <label for="pb-dim">embedding dim <span class="math">d</span></label>
+      <input type="range" id="pb-dim" min="64" max="12288" step="64" value="768">
+      <output id="pb-dim-out">768</output>
+    </div>
+    <div id="param-bar" style="display:flex;height:34px;border-radius:6px;overflow:hidden;margin:18px 0 10px;border:1px solid var(--line)"></div>
+    <div class="readout" id="pb-read"></div>
+  </div>
+
+  <nav class="pager">
+    <a href="attention.html"><span class="pg-label">← Previous</span>Queries, keys &amp; values</a>
+    <a class="next" href="output.html"><span class="pg-label">Next →</span>Softmax &amp; sampling</a>
+  </nav>
+</main>
+
+<script src="../js/deep.js"></script>
+<script>
+/* --- residual stream diagram --- */
+(function () {
+  const svg = $("#res-diagram");
+  const Y = 95;
+  const defs = svgEl("defs");
+  const m = svgEl("marker", { id: "arr", viewBox: "0 0 10 10", refX: 8.5, refY: 5, markerWidth: 6.5, markerHeight: 6.5, orient: "auto" });
+  m.appendChild(svgEl("path", { d: "M 0 0 L 10 5 L 0 10 z", fill: C.muted }));
+  defs.appendChild(m);
+  svg.appendChild(defs);
+
+  /* the stream */
+  svg.appendChild(svgEl("line", { x1: 20, y1: Y, x2: 690, y2: Y, stroke: C.muted, "stroke-width": 2.4, "marker-end": "url(#arr)" }));
+  svg.appendChild(svgEl("text", { x: 24, y: Y - 12, "font-size": 13, "font-style": "italic", fill: C.muted }, "x, the residual stream"));
+
+  const box = (cx, label, color) => {
+    svg.appendChild(svgEl("rect", { x: cx - 62, y: 18, width: 124, height: 38, rx: 7, fill: alpha(color, 0.1), stroke: color, "stroke-width": 1.4 }));
+    svg.appendChild(svgEl("text", { x: cx, y: 42, "text-anchor": "middle", "font-size": 14, fill: color, "font-style": "italic" }, label));
+    /* tap up, merge back */
+    svg.appendChild(svgEl("path", { d: `M ${cx - 90} ${Y} C ${cx - 90} 37, ${cx - 80} 37, ${cx - 64} 37`, fill: "none", stroke: color, "stroke-width": 1.6, "marker-end": "url(#arr)" }));
+    svg.appendChild(svgEl("path", { d: `M ${cx + 64} 37 C ${cx + 82} 37, ${cx + 88} ${Y - 22}, ${cx + 92} ${Y - 8}`, fill: "none", stroke: color, "stroke-width": 1.6, "marker-end": "url(#arr)" }));
+    svg.appendChild(svgEl("circle", { cx: cx + 94, cy: Y, r: 11, fill: C.bg, stroke: color, "stroke-width": 1.6 }));
+    svg.appendChild(svgEl("text", { x: cx + 94, y: Y + 5, "text-anchor": "middle", "font-size": 15, fill: color }, "+"));
+  };
+  box(200, "attention", C.blue);
+  box(470, "MLP", C.gold);
+  svg.appendChild(svgEl("text", { x: 355, y: 165, "text-anchor": "middle", "font-size": 12.5, "font-style": "italic", fill: C.faint },
+    "one block — repeated L times, each adding its correction to the stream"));
+})();
+
+/* --- activation plot --- */
+(function () {
+  const svg = $("#act-plot");
+  const W = 720, H = 280, PAD = 30;
+  const xr = [-4, 4], yr = [-1.2, 4.2];
+  const px = (x) => PAD + ((x - xr[0]) / (xr[1] - xr[0])) * (W - PAD * 2);
+  const py = (y) => H - PAD - ((y - yr[0]) / (yr[1] - yr[0])) * (H - PAD * 2);
+  const gelu = (x) => 0.5 * x * (1 + Math.tanh(Math.sqrt(2 / Math.PI) * (x + 0.044715 * x ** 3)));
+  const relu = (x) => Math.max(0, x);
+  let act = "gelu";
+
+  svg.appendChild(svgEl("line", { x1: PAD, y1: py(0), x2: W - PAD, y2: py(0), stroke: C.axis, "stroke-width": 1 }));
+  svg.appendChild(svgEl("line", { x1: px(0), y1: PAD, x2: px(0), y2: H - PAD, stroke: C.axis, "stroke-width": 1 }));
+  const curve = svgEl("path", { fill: "none", stroke: C.yellow, "stroke-width": 2.4 });
+  svg.appendChild(curve);
+  const dot = svgEl("circle", { r: 7, fill: C.blue, stroke: C.bg, "stroke-width": 2 });
+  svg.appendChild(dot);
+  const dropX = svgEl("line", { stroke: C.blue, "stroke-width": 1, "stroke-dasharray": "3 4", opacity: 0.6 });
+  const dropY = svgEl("line", { stroke: C.blue, "stroke-width": 1, "stroke-dasharray": "3 4", opacity: 0.6 });
+  svg.append(dropX, dropY);
+  const lbl = svgEl("text", { "font-size": 13.5, fill: C.ink, "font-style": "italic" });
+  svg.appendChild(lbl);
+
+  function fn() { return act === "gelu" ? gelu : relu; }
+  function render() {
+    let d = "";
+    for (let x = xr[0]; x <= xr[1]; x += 0.05)
+      d += (x === xr[0] ? "M" : "L") + px(x).toFixed(1) + " " + py(fn()(x)).toFixed(1) + " ";
+    curve.setAttribute("d", d);
+    const x = +$("#act-x").value, y = fn()(x);
+    dot.setAttribute("cx", px(x)); dot.setAttribute("cy", py(y));
+    dropX.setAttribute("x1", px(x)); dropX.setAttribute("y1", py(0));
+    dropX.setAttribute("x2", px(x)); dropX.setAttribute("y2", py(y));
+    dropY.setAttribute("x1", px(0)); dropY.setAttribute("y1", py(y));
+    dropY.setAttribute("x2", px(x)); dropY.setAttribute("y2", py(y));
+    lbl.setAttribute("x", px(x) + 12); lbl.setAttribute("y", py(y) - 10);
+    lbl.textContent = `${act.toUpperCase()}(${x.toFixed(2)}) = ${y.toFixed(2)}`;
+    $("#act-out").textContent = x.toFixed(2);
+  }
+  $("#act-x").addEventListener("input", render);
+  $$(".pill-toggle[data-act]").forEach((b) =>
+    b.addEventListener("click", () => {
+      act = b.dataset.act;
+      $$(".pill-toggle[data-act]").forEach((x) => x.classList.toggle("active", x === b));
+      render();
+    })
+  );
+  render();
+})();
+
+/* --- parameter breakdown --- */
+(function () {
+  const VOC = 50257;
+  const fmt = (n) => n >= 1e9 ? (n / 1e9).toFixed(1) + "B" : n >= 1e6 ? (n / 1e6).toFixed(1) + "M" : Math.round(n / 1e3) + "K";
+  function render() {
+    const L = +$("#pb-layers").value, d = +$("#pb-dim").value;
+    $("#pb-layers-out").textContent = L;
+    $("#pb-dim-out").textContent = d.toLocaleString();
+    const attn = 4 * L * d * d, mlp = 8 * L * d * d, emb = VOC * d;
+    const total = attn + mlp + emb;
+    const bar = $("#param-bar");
+    bar.innerHTML = "";
+    [["attention", attn, C.blue], ["MLPs", mlp, C.gold], ["embeddings", emb, C.purple]].forEach(([name, v, col]) => {
+      const seg = document.createElement("div");
+      seg.style.cssText = `width:${(v / total) * 100}%;background:${alpha(col, 0.75)};display:grid;place-items:center;font-family:var(--sans);font-size:.72rem;color:var(--bg);font-weight:600;overflow:hidden;white-space:nowrap;transition:width .3s`;
+      if ((v / total) > 0.09) seg.textContent = `${name} ${(v / total * 100).toFixed(0)}%`;
+      seg.title = `${name}: ${fmt(v)} (${(v / total * 100).toFixed(1)}%)`;
+      bar.appendChild(seg);
+    });
+    $("#pb-read").innerHTML =
+      `total ≈ <b>${fmt(total)}</b> — attention ${fmt(attn)}, MLPs ${fmt(mlp)}, embedding table ${fmt(emb)}. ` +
+      (emb / total > 0.3
+        ? `At small sizes the embedding table dominates — most of a tiny model is its dictionary.`
+        : `At scale the blocks dominate, and two-thirds of each block is MLP.`);
+  }
+  $("#pb-layers").addEventListener("input", render);
+  $("#pb-dim").addEventListener("input", render);
+  render();
+})();
+</script>
+</body>
+</html>

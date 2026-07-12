@@ -1,0 +1,191 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>The KV Cache — Inside the Transformer</title>
+<link rel="stylesheet" href="../css/style.css">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><circle cx='50' cy='50' r='42' fill='%2358C4DD'/></svg>">
+</head>
+<body>
+
+<header class="deep-head">
+  <a href="../index.html">← Inside the Transformer</a>
+  <span class="ch-num">Chapter 6 · Deep dive</span>
+</header>
+
+<main class="deep-main">
+  <div class="ch-head">
+    <h2>The <span class="acc-blue">KV cache</span></h2>
+    <p class="lede">
+      The live demo showed the loop: predict, sample, append, repeat. Taken
+      literally, that loop re-reads the entire context every token — most of it
+      redundantly. The trick that makes real chatbots fast is embarrassingly
+      simple: <em>remember your keys and values</em>.
+    </p>
+  </div>
+
+  <h3 class="sec-title">Two phases of a reply</h3>
+  <p class="prose">
+    <b>Prefill</b> — your whole prompt is processed at once, in parallel (this
+    is the pause before the first word appears).
+    <b>Decode</b> — then tokens come out one at a time, each requiring a full
+    pass through the model. The two phases feel different because they are:
+    prefill is one big matrix multiply; decode is a loop.
+  </p>
+
+  <h3 class="sec-title">The redundancy</h3>
+  <p class="prose">
+    In the attention chapter, each token computed a key and value. Here's the
+    thing: <b>token 3's key never changes</b>. When you're generating token 50,
+    tokens 1–49 have exactly the same keys and values they had last step —
+    causal masking guarantees nothing behind you ever changes. Recomputing them
+    every step is pure waste. So: compute each token's
+    <span class="math">K</span> and <span class="math">V</span> once, and keep
+    them.
+  </p>
+
+  <h3 class="sec-title">Watch the cache grow</h3>
+  <p class="prose">
+    Each step, the new token computes its own <span class="math">K</span>,
+    <span class="math">V</span> (one new row, blue) and its query reads against
+    all the cached rows (dimmed). The counters compare work done with and
+    without the cache:
+  </p>
+  <div class="panel">
+    <div class="row" style="margin-bottom:14px">
+      <button class="btn-primary" id="kv-step">Generate next token</button>
+      <button class="link-btn" id="kv-auto">run</button>
+      <button class="link-btn" id="kv-reset">reset</button>
+    </div>
+    <div class="inf-context" id="kv-tokens" style="margin-bottom:16px"></div>
+    <div class="mat-row">
+      <div class="mat-fig">
+        <div class="mat-label" style="color:var(--green)">K cache</div>
+        <div class="matrix" id="kv-k"></div>
+      </div>
+      <div class="mat-fig">
+        <div class="mat-label" style="color:var(--gold)">V cache</div>
+        <div class="matrix" id="kv-v"></div>
+      </div>
+      <div class="mat-fig" style="flex:1;min-width:230px">
+        <div style="text-align:left">
+          <div class="stat" style="margin-bottom:14px">
+            <span class="stat-value" id="kv-with">0</span>
+            <span class="stat-label">K,V computations — with cache</span>
+          </div>
+          <div class="stat">
+            <span class="stat-value" style="color:var(--red)" id="kv-without">0</span>
+            <span class="stat-label">without cache (recompute all, every step)</span>
+          </div>
+        </div>
+      </div>
+    </div>
+    <p class="readout" id="kv-read">Press generate — the prompt is prefilled in one shot.</p>
+  </div>
+  <p class="note">
+    With the cache, each new token costs one new K,V row plus one read over the
+    cache — <b>linear</b> work per token. Without it, step <span class="math">n</span>
+    recomputes all <span class="math">n</span> rows, and a whole reply costs
+    <b>quadratically</b> more. The gap on the counters above is after seven
+    tokens; imagine it at seven thousand.
+  </p>
+
+  <h3 class="sec-title">What the cache costs instead: memory</h3>
+  <p class="prose">
+    Nothing is free. The cache holds a K and V vector <em>per token, per layer,
+    per head</em> — for a big model, that's on the order of a megabyte of GPU
+    memory per token of context. This is the physical reason context windows
+    are finite, long chats get slow and expensive, and serving providers care
+    so much about memory. When people say "the context window is full," they
+    mean: <em>the cache is full</em>.
+  </p>
+
+  <h3 class="sec-title">Why the loop still feels fast</h3>
+  <p class="prose">
+    Three tricks stack on top of the cache. <b>Batching</b> — the GPU generates
+    for many users in one matrix multiply; your tokens ride along with
+    strangers'. <b>Speculative decoding</b> — a small, cheap model drafts a few
+    tokens ahead, and the big model verifies the whole draft in a single pass
+    (checking is parallel; guessing is not). And <b>quantization</b> — storing
+    weights and cache in fewer bits, trading a sliver of accuracy for a big cut
+    in memory traffic. Between them, the loop that looks so laborious in the
+    demo runs at tens to hundreds of tokens per second.
+  </p>
+
+  <nav class="pager">
+    <a href="output.html"><span class="pg-label">← Previous</span>Softmax &amp; sampling</a>
+    <a class="next" href="../index.html"><span class="pg-label">Back to</span>Contents</a>
+  </nav>
+</main>
+
+<script src="../js/deep.js"></script>
+<script>
+const SENT = ["The", "robot", "dreamed", "of", "electric", "sheep", "."];
+const PROMPT_LEN = 2;
+const D = 5;
+
+let n; /* tokens processed so far */
+function rowFor(i) {
+  return Array.from({ length: D }, (_, d) => Math.sin((i + 1) * 1.3 + d * 2.1) * 0.9);
+}
+
+function render(fresh) {
+  const toks = $("#kv-tokens");
+  toks.innerHTML = "";
+  SENT.slice(0, n).forEach((w, i) => {
+    const t = document.createElement("span");
+    t.className = "inf-tok" + (fresh && i === n - 1 ? " fresh" : "");
+    t.textContent = w;
+    toks.appendChild(t);
+  });
+
+  const rows = Array.from({ length: n }, (_, i) => rowFor(i));
+  const opts = (baseCol) => ({
+    rows: SENT.slice(0, n), cellW: 34, cellH: 24,
+    fmt: (v) => v.toFixed(1),
+    colorFn: (v, i) => {
+      const isNew = fresh && i === n - 1;
+      return isNew ? alpha(C.blue, 0.45) : alpha(baseCol, 0.13 + Math.abs(v) * 0.14);
+    },
+  });
+  if (n) {
+    matrixEl("#kv-k", rows, opts(C.green));
+    matrixEl("#kv-v", rows, opts(C.gold));
+  } else {
+    $("#kv-k").innerHTML = ""; $("#kv-v").innerHTML = "";
+  }
+
+  const withCache = n;
+  const withoutCache = (n * (n + 1)) / 2;
+  $("#kv-with").textContent = withCache;
+  $("#kv-without").textContent = withoutCache;
+}
+
+function step() {
+  if (n >= SENT.length) return false;
+  if (n < PROMPT_LEN) {
+    n = PROMPT_LEN; /* prefill: the prompt lands all at once */
+    render(false);
+    $("#kv-read").innerHTML = `<b>Prefill:</b> the ${PROMPT_LEN}-token prompt is processed in one parallel pass — ${PROMPT_LEN} K,V rows cached instantly.`;
+  } else {
+    n++;
+    render(true);
+    $("#kv-read").innerHTML =
+      `<b>Decode step:</b> “${SENT[n - 1]}” computes <b>1 new row</b> (blue) and its query reads the ${n - 1} cached rows. ` +
+      `Without a cache this step alone would recompute all ${n} rows.`;
+  }
+  if (n >= SENT.length) $("#kv-read").innerHTML += " Generation complete.";
+  return n < SENT.length;
+}
+
+$("#kv-step").addEventListener("click", step);
+$("#kv-reset").addEventListener("click", () => { n = 0; render(false); $("#kv-read").textContent = "Press generate — the prompt is prefilled in one shot."; });
+$("#kv-auto").addEventListener("click", () => {
+  (function tick() { if (step()) setTimeout(tick, 800); })();
+});
+n = 0;
+render(false);
+</script>
+</body>
+</html>

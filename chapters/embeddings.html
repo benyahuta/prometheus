@@ -1,0 +1,242 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>The Embedding Matrix — Inside the Transformer</title>
+<link rel="stylesheet" href="../css/style.css">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><circle cx='50' cy='50' r='42' fill='%2358C4DD'/></svg>">
+</head>
+<body>
+
+<header class="deep-head">
+  <a href="../index.html">← Inside the Transformer</a>
+  <span class="ch-num">Chapter 2 · Deep dive</span>
+</header>
+
+<main class="deep-main">
+  <div class="ch-head">
+    <h2>The embedding <span class="acc-blue">matrix</span></h2>
+    <p class="lede">
+      "Each token becomes a vector" is really just a table lookup — but the
+      table is learned, and there's a subtle problem to solve: attention has no
+      idea what order the words came in.
+    </p>
+  </div>
+
+  <h3 class="sec-title">One giant lookup table</h3>
+  <p class="prose">
+    The embedding matrix <span class="math">W<sub>E</sub></span> has one row per
+    vocabulary entry and one column per dimension — for GPT-3 that's
+    50,257 × 12,288, about <b>617 million parameters</b> before any actual
+    "thinking" machinery. Embedding a token means: take its ID, copy out that
+    row. Click a token:
+  </p>
+  <div class="panel">
+    <div class="mat-row">
+      <div class="mat-fig">
+        <div class="mat-label">W<sub>E</sub> &nbsp;(toy: 8 tokens × 6 dims)</div>
+        <div class="matrix" id="we-matrix"></div>
+        <div class="mat-sub">click a row label to look it up</div>
+      </div>
+      <div class="mat-op">→</div>
+      <div class="mat-fig">
+        <div class="mat-label" id="picked-label">x<sub>“cat”</sub></div>
+        <div class="matrix" id="picked-vec"></div>
+        <div class="mat-sub">the token's embedding</div>
+      </div>
+    </div>
+    <p class="readout" id="we-read"></p>
+  </div>
+  <p class="note">
+    These numbers start random and are shaped entirely by training. Nobody
+    designs "dimension 3 means furriness" — but directions with meaning
+    (gender, tense, sentiment…) emerge, which is why the vector arithmetic on
+    the main page works.
+  </p>
+
+  <h3 class="sec-title">The order problem</h3>
+  <p class="prose">
+    Here's the catch: attention treats its input as a <em>set</em>. Swap the
+    words of "dog bites man" around and every query–key dot product is
+    identical — <b>"man bites dog" would get exactly the same attention scores</b>.
+    Word order has to be injected explicitly, by adding a <em>position vector</em>
+    to each token vector:
+  </p>
+  <div class="formula">input<sub>i</sub> = W<sub>E</sub>[token<sub>i</sub>] + PE(i)</div>
+
+  <h3 class="sec-title">Positional encoding, drawn</h3>
+  <p class="prose">
+    The classic recipe uses sine waves: each dimension of
+    <span class="math">PE</span> oscillates as you move along the sequence, and
+    each pair of dimensions oscillates <em>slower</em> than the last — fast
+    counters for nearby positions, slow ones for far apart. Any position gets a
+    unique fingerprint. Drag the slider:
+  </p>
+  <div class="panel">
+    <div class="plot-wrap">
+      <svg id="pe-plot" viewBox="0 0 720 300"></svg>
+    </div>
+    <div class="slider-row">
+      <label for="pos-slider">position <span class="math">i</span></label>
+      <input type="range" id="pos-slider" min="0" max="60" value="12">
+      <output id="pos-out">12</output>
+    </div>
+    <div class="mat-row" style="align-items:center">
+      <div class="mat-fig">
+        <div class="mat-label">PE(<span id="pe-pos">12</span>)</div>
+        <div class="matrix" id="pe-vec"></div>
+        <div class="mat-sub">this position's fingerprint (8 of the dims)</div>
+      </div>
+    </div>
+  </div>
+  <p class="note">
+    Modern models mostly use variations on this theme — learned positions, or
+    <em>rotary</em> encodings (RoPE) that rotate the query/key vectors by a
+    position-dependent angle — but the job is identical: make "dog bites man"
+    and "man bites dog" look different.
+  </p>
+
+  <h3 class="sec-title">Measuring similarity: the dot product</h3>
+  <p class="prose">
+    The workhorse of everything downstream. Multiply two vectors coordinate by
+    coordinate, add it up. Big positive → pointing the same way. Pick two words:
+  </p>
+  <div class="panel">
+    <div class="toggle-row" id="dp-picker-a"></div>
+    <div class="toggle-row" id="dp-picker-b"></div>
+    <div class="formula" id="dp-formula" style="font-size:1.05rem"></div>
+    <p class="readout" id="dp-read"></p>
+  </div>
+
+  <nav class="pager">
+    <a href="tokenization.html"><span class="pg-label">← Previous</span>Byte-pair encoding</a>
+    <a class="next" href="attention.html"><span class="pg-label">Next →</span>Queries, keys &amp; values</a>
+  </nav>
+</main>
+
+<script src="../js/deep.js"></script>
+<script>
+/* --- the lookup table --- */
+const VOCAB = ["cat", "kitten", "dog", "pizza", "moon", "king", "queen", "the"];
+function embRow(word) {
+  const FAMILY = { cat: 1, kitten: 1, dog: 1.35, pizza: 7, moon: 12, king: 20, queen: 20.4, the: 40 };
+  return Array.from({ length: 6 }, (_, d) => {
+    const base = Math.sin((d + 1) * 1.9 + FAMILY[word] * 1.3) * 0.85;
+    const personal = (((word.charCodeAt(0) * 37 + d * 101) % 100) / 100 - 0.5) * 0.4;
+    return Math.max(-1, Math.min(1, base + personal));
+  });
+}
+const WE = VOCAB.map(embRow);
+let picked = 0;
+
+function renderWE() {
+  const container = $("#we-matrix");
+  matrixEl(container, WE, {
+    rows: VOCAB, max: 1,
+    cellW: 40, cellH: 26,
+    fmt: (v) => v.toFixed(1),
+    onRowClick: (i) => { picked = i; renderWE(); },
+    cellRef: (cell, i) => { if (i === picked) cell.classList.add("hl"); },
+  });
+  /* row labels clickable too */
+  [...container.children].forEach((cell) => {
+    if (cell.classList.contains("rowhead")) {
+      cell.style.cursor = "pointer";
+      cell.addEventListener("click", () => {
+        picked = VOCAB.indexOf(cell.textContent);
+        renderWE();
+      });
+    }
+  });
+  matrixEl("#picked-vec", [WE[picked]], { max: 1, cellW: 40, cellH: 26, fmt: (v) => v.toFixed(1) });
+  $("#picked-label").innerHTML = `x<sub>“${VOCAB[picked]}”</sub>`;
+  $("#we-read").innerHTML =
+    `Token <b>“${VOCAB[picked]}”</b> (ID ${VOCAB.indexOf(VOCAB[picked])}) → row ${picked} of W<sub>E</sub>. ` +
+    `Compare <b>cat</b> and <b>kitten</b>: nearly identical rows. Compare <b>cat</b> and <b>the</b>: nothing in common.`;
+}
+renderWE();
+
+/* --- positional encoding plot --- */
+const PW = 720, PH = 300, PAD = 34;
+const MAXPOS = 60, NDIMS = 8; /* 4 sin/cos pairs */
+const DIM_COLORS = [C.blue, C.red, C.yellow, C.green];
+function pe(pos, d) {
+  const pair = Math.floor(d / 2);
+  const freq = 1 / Math.pow(80, (2 * pair) / NDIMS);
+  return d % 2 === 0 ? Math.sin(pos * freq) : Math.cos(pos * freq);
+}
+const px = (pos) => PAD + (pos / MAXPOS) * (PW - PAD * 2);
+const py = (v) => PH / 2 - v * (PH / 2 - PAD);
+
+const plot = $("#pe-plot");
+plot.appendChild(svgEl("line", { x1: PAD, y1: PH / 2, x2: PW - PAD, y2: PH / 2, stroke: C.axis, "stroke-width": 1 }));
+for (let pair = 0; pair < 4; pair++) {
+  let d = "";
+  for (let p = 0; p <= MAXPOS; p += 0.5)
+    d += (p === 0 ? "M" : "L") + px(p).toFixed(1) + " " + py(pe(p, pair * 2)).toFixed(1) + " ";
+  plot.appendChild(svgEl("path", { d, fill: "none", stroke: DIM_COLORS[pair], "stroke-width": 1.8, opacity: 0.85 }));
+  plot.appendChild(svgEl("text", {
+    x: PW - PAD + 4, y: py(pe(MAXPOS, pair * 2)) + 4,
+    "font-size": 11, fill: DIM_COLORS[pair], "font-style": "italic",
+  }, "dim " + pair * 2));
+}
+plot.appendChild(svgEl("text", { x: PW / 2, y: PH - 6, "text-anchor": "middle", "font-size": 12, "font-style": "italic", fill: C.faint }, "position in the sequence →"));
+const marker = svgEl("line", { x1: 0, y1: PAD - 10, x2: 0, y2: PH - PAD + 10, stroke: C.ink, "stroke-width": 1, "stroke-dasharray": "4 4", opacity: 0.7 });
+plot.appendChild(marker);
+
+function renderPE() {
+  const pos = +$("#pos-slider").value;
+  $("#pos-out").textContent = pos;
+  $("#pe-pos").textContent = pos;
+  marker.setAttribute("x1", px(pos));
+  marker.setAttribute("x2", px(pos));
+  matrixEl("#pe-vec", [Array.from({ length: NDIMS }, (_, d) => pe(pos, d))], {
+    max: 1, cellW: 44, cellH: 28, fmt: (v) => v.toFixed(2),
+  });
+}
+$("#pos-slider").addEventListener("input", renderPE);
+renderPE();
+
+/* --- dot product calculator --- */
+const DP_WORDS = {
+  cat: [0.9, 1.2, -0.3, 0.1],
+  kitten: [0.8, 1.1, -0.2, 0.2],
+  dog: [0.85, 0.9, -0.1, 0.0],
+  pizza: [-0.7, 0.4, 1.3, 0.5],
+  moon: [0.1, -0.9, 0.2, 1.2],
+};
+let wa = "cat", wb = "kitten";
+function mkPicker(id, current, onPick) {
+  const el = $(id);
+  el.innerHTML = "";
+  Object.keys(DP_WORDS).forEach((w) => {
+    const b = document.createElement("button");
+    b.className = "pill-toggle" + (w === current ? " active" : "");
+    b.textContent = w;
+    b.addEventListener("click", () => onPick(w));
+    el.appendChild(b);
+  });
+}
+function renderDP() {
+  mkPicker("#dp-picker-a", wa, (w) => { wa = w; renderDP(); });
+  mkPicker("#dp-picker-b", wb, (w) => { wb = w; renderDP(); });
+  const a = DP_WORDS[wa], b = DP_WORDS[wb];
+  const terms = a.map((v, i) => v * b[i]);
+  const dot = terms.reduce((s, t) => s + t, 0);
+  const na = Math.hypot(...a), nb = Math.hypot(...b);
+  const cos = dot / (na * nb);
+  $("#dp-formula").innerHTML =
+    `${wa} · ${wb} = ` +
+    a.map((v, i) => `(${v.toFixed(1)})(${b[i].toFixed(1)})`).join(" + ") +
+    ` = ${terms.map((t) => t.toFixed(2)).join(" + ")} = <span class="acc">${dot.toFixed(2)}</span>`;
+  const verdict = cos > 0.8 ? "nearly parallel — the model treats these as close kin"
+    : cos > 0.3 ? "somewhat aligned"
+    : cos > -0.2 ? "roughly unrelated — nearly perpendicular directions"
+    : "pointing in opposing directions";
+  $("#dp-read").innerHTML = `cosine similarity = ${dot.toFixed(2)} / (${na.toFixed(2)} × ${nb.toFixed(2)}) = <b>${cos.toFixed(2)}</b> — ${verdict}.`;
+}
+renderDP();
+</script>
+</body>
+</html>
