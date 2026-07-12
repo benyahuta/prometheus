@@ -28,20 +28,28 @@
   </div>
 
   <h3 class="sec-title">Inside the MLP: expand, bend, contract</h3>
-  <p class="caption">attention gathers the gossip; the MLP sits alone with each word and thinks it over.</p>
-  <div class="formula">MLP(x) = W<sub>down</sub> · GELU(W<sub>up</sub> · x) &nbsp;&nbsp;<span style="color:var(--faint);font-style:normal;font-size:.85rem">d → 4d → d</span></div>
+  <p class="caption">attention gathered the gossip; now the MLP sits alone with each word and thinks it over. we pick up <b>exactly where chapter 3 ended</b>: X′ = the embeddings after attention's edit was added.</p>
+  <div class="formula">MLP(X′) = GELU(X′·W<sub>up</sub>) · W<sub>down</sub> &nbsp;&nbsp;<span style="color:var(--faint);font-style:normal;font-size:.85rem">4 dims → 8 neurons → 4 dims</span></div>
+
   <div class="panel">
-    <div class="toggle-row">
-      <button class="pill-toggle active" data-act="gelu">GELU (transformers)</button>
-      <button class="pill-toggle" data-act="relu">ReLU (classic)</button>
-    </div>
-    <div class="plot-wrap"><svg id="act-plot" viewBox="0 0 720 280"></svg></div>
-    <div class="slider-row">
-      <label for="act-x">input <span class="math">x</span></label>
-      <input type="range" id="act-x" min="-4" max="4" step="0.05" value="1.2">
-      <output id="act-out"></output>
-    </div>
-    <p class="caption">the bend is the whole point — without it, stacked matrices collapse into one matrix. <b>attention routes, MLPs know</b>: neurons here fire for things like “basketball words” or “inside a URL”.</p>
+    <div id="anim-up"></div>
+    <p class="caption"><b>expand:</b> each column of W<sub>up</sub> is a <b>neuron</b> — a learned pattern detector. its dot product with a token's vector asks: <em>“how strongly is my pattern present in this word?”</em> (real models use 4× the width: 12,288 dims → 49,152 neurons.)</p>
+  </div>
+
+  <div class="panel">
+    <div id="anim-gelu"></div>
+    <div class="plot-wrap" style="max-width:360px;margin-top:14px"><svg id="gelu-mini" viewBox="0 0 340 150"></svg></div>
+    <p class="caption"><b>bend:</b> GELU is the gatekeeper — negative scores (<em>“pattern not found”</em>) are muted to ≈ 0; positive ones pass. this bend is the whole reason a deep network isn't just one big matrix.</p>
+  </div>
+
+  <div class="panel">
+    <div id="anim-down"></div>
+    <p class="caption"><b>contract:</b> every neuron that stayed <b>on</b> votes on how to edit the token, through its row of W<sub>down</sub>. muted neurons contribute ≈ nothing — only detected patterns get a say. <b>attention routes, MLPs know</b>: real neurons fire for things like “basketball words” or “inside a URL”.</p>
+  </div>
+
+  <div class="panel">
+    <div id="anim-mlpadd"></div>
+    <p class="caption">same rule as attention: <b>add, never replace</b>. X″ rolls on to the next block, where the whole dance — attention, then MLP — repeats.</p>
   </div>
 
   <h3 class="sec-title">Where the parameters live</h3>
@@ -96,54 +104,119 @@
     "one block — repeated L times"));
 })();
 
-/* --- activation plot --- */
+/* --- the MLP, applied to chapter 3's actual output X′ --- */
 (function () {
-  const svg = $("#act-plot");
-  const W = 720, H = 280, PAD = 30;
-  const xr = [-4, 4], yr = [-1.2, 4.2];
-  const px = (x) => PAD + ((x - xr[0]) / (xr[1] - xr[0])) * (W - PAD * 2);
-  const py = (y) => H - PAD - ((y - yr[0]) / (yr[1] - yr[0])) * (H - PAD * 2);
+  const TOKENS = ["the", "robot", "ate", "apples"];
   const gelu = (x) => 0.5 * x * (1 + Math.tanh(Math.sqrt(2 / Math.PI) * (x + 0.044715 * x ** 3)));
-  const relu = (x) => Math.max(0, x);
-  let act = "gelu";
 
-  svg.appendChild(svgEl("line", { x1: PAD, y1: py(0), x2: W - PAD, y2: py(0), stroke: C.axis, "stroke-width": 1 }));
-  svg.appendChild(svgEl("line", { x1: px(0), y1: PAD, x2: px(0), y2: H - PAD, stroke: C.axis, "stroke-width": 1 }));
-  const curve = svgEl("path", { fill: "none", stroke: C.yellow, "stroke-width": 2.4 });
-  svg.appendChild(curve);
-  const dot = svgEl("circle", { r: 7, fill: C.blue, stroke: C.bg, "stroke-width": 2 });
-  svg.appendChild(dot);
-  const dropX = svgEl("line", { stroke: C.blue, "stroke-width": 1, "stroke-dasharray": "3 4", opacity: 0.6 });
-  const dropY = svgEl("line", { stroke: C.blue, "stroke-width": 1, "stroke-dasharray": "3 4", opacity: 0.6 });
-  svg.append(dropX, dropY);
-  const lbl = svgEl("text", { "font-size": 13.5, fill: C.ink, "font-style": "italic" });
-  svg.appendChild(lbl);
-
-  function fn() { return act === "gelu" ? gelu : relu; }
-  function render() {
-    let d = "";
-    for (let x = xr[0]; x <= xr[1]; x += 0.05)
-      d += (x === xr[0] ? "M" : "L") + px(x).toFixed(1) + " " + py(fn()(x)).toFixed(1) + " ";
-    curve.setAttribute("d", d);
-    const x = +$("#act-x").value, y = fn()(x);
-    dot.setAttribute("cx", px(x)); dot.setAttribute("cy", py(y));
-    dropX.setAttribute("x1", px(x)); dropX.setAttribute("y1", py(0));
-    dropX.setAttribute("x2", px(x)); dropX.setAttribute("y2", py(y));
-    dropY.setAttribute("x1", px(0)); dropY.setAttribute("y1", py(y));
-    dropY.setAttribute("x2", px(x)); dropY.setAttribute("y2", py(y));
-    lbl.setAttribute("x", px(x) + 12); lbl.setAttribute("y", py(y) - 10);
-    lbl.textContent = `${act.toUpperCase()}(${x.toFixed(2)}) = ${y.toFixed(2)}`;
-    $("#act-out").textContent = x.toFixed(2);
+  /* recompute X′ exactly as chapter 3 left it (causal mask on) */
+  function inverse(M) {
+    const n = M.length;
+    const A = M.map((r, i) => [...r, ...r.map((_, j) => (i === j ? 1 : 0))]);
+    for (let c = 0; c < n; c++) {
+      let piv = c;
+      for (let r = c + 1; r < n; r++) if (Math.abs(A[r][c]) > Math.abs(A[piv][c])) piv = r;
+      [A[c], A[piv]] = [A[piv], A[c]];
+      const p = A[c][c];
+      for (let j = 0; j < 2 * n; j++) A[c][j] /= p;
+      for (let r = 0; r < n; r++) {
+        if (r === c) continue;
+        const f = A[r][c];
+        for (let j = 0; j < 2 * n; j++) A[r][j] -= f * A[c][j];
+      }
+    }
+    return A.map((r) => r.slice(n));
   }
-  $("#act-x").addEventListener("input", render);
-  $$(".pill-toggle[data-act]").forEach((b) =>
-    b.addEventListener("click", () => {
-      act = b.dataset.act;
-      $$(".pill-toggle[data-act]").forEach((x) => x.classList.toggle("active", x === b));
-      render();
-    })
-  );
-  render();
+  const X = [[0.62,-0.45,0.12,0.71],[-0.28,0.83,0.55,-0.19],[0.44,0.21,-0.72,0.38],[-0.57,-0.11,0.42,0.66]];
+  const Qd = [[0.3,0,0],[0.4,1.2,0],[1.6,0.2,-0.5],[1.2,0.8,0]];
+  const Kd = [[0.2,0,0],[2.0,0.4,0],[0,1.5,0.5],[1.8,-0.6,0.3]];
+  const Vd = [[0.1,0,0.1],[1.2,0.3,-0.4],[0.2,1.1,0.3],[0.9,-0.2,0.8]];
+  const WOa = [[0.9,-0.2,0.4,0.1],[-0.3,1.1,0.2,-0.5],[0.2,0.4,-0.8,0.7]];
+  const Xinv = inverse(X);
+  const Qm = matmul(X, matmul(Xinv, Qd)), Km = matmul(X, matmul(Xinv, Kd)), Vm = matmul(X, matmul(Xinv, Vd));
+  const Sm = matmul(Qm, transpose(Km)).map((r) => r.map((v) => v / Math.sqrt(3)));
+  const Am = Sm.map((r, i) => softmaxArr(r.map((v, j) => (j > i ? -Infinity : v))));
+  const dX = matmul(matmul(Am, Vm), WOa);
+  const Xp = X.map((r, i) => r.map((v, j) => v + dX[i][j]));
+
+  /* the MLP's learned weights: 8 neurons */
+  const WUP = Array.from({ length: 4 }, (_, i) =>
+    Array.from({ length: 8 }, (_, j) => Math.round(Math.sin(i * 3.7 + j * 1.9) * 110) / 100));
+  const WDN = Array.from({ length: 8 }, (_, i) =>
+    Array.from({ length: 4 }, (_, j) => Math.round(Math.cos(i * 1.7 + j * 2.3) * 50) / 100));
+  const H = matmul(Xp, WUP);
+  const G = H.map((r) => r.map(gelu));
+  const dM = matmul(G, WDN);
+
+  const NEURONS = Array.from({ length: 8 }, (_, j) => "n" + (j + 1));
+  const dest = (m, r, c) => `<b>${m}[${r}, ${c}]</b> = `;
+
+  /* 1 — expand */
+  matMulAnim("#anim-up", {
+    A: Xp, B: WUP, aRows: TOKENS, bCols: NEURONS,
+    aLabel: "X′ <span style='color:var(--faint);font-style:normal;font-size:.75rem'>(from chapter 3)</span>",
+    bLabel: "W<sub>up</sub> <span style='color:var(--faint);font-style:normal;font-size:.75rem'>(8 neurons, learned)</span>",
+    cLabel: "H = X′·W<sub>up</sub>", cSub: "each cell: how strongly neuron j detects its pattern in token i",
+    maxA: 1.3, maxB: 1.2, maxC: 1.6, stepMs: 220, cellW: 34,
+    termText: (i, j, arow, bcol, sum) =>
+      dest("H", TOKENS[i], NEURONS[j]) +
+      `x′${"<sub>" + TOKENS[i] + "</sub>"} · neuron ${j + 1} = ` +
+      arow.map((a, k) => `(${a.toFixed(1)})(${bcol[k].toFixed(1)})`).join("+") +
+      ` = <b>${sum.toFixed(2)}</b>`,
+    doneText: "32 detector scores — about half are negative: patterns <b>not</b> found.",
+  });
+
+  /* 2 — bend */
+  matMapAnim("#anim-gelu", {
+    A: H, fn: gelu, rows: TOKENS,
+    aLabel: "H", cLabel: "GELU(H)", cSub: "negatives muted to ≈ 0 — the gate has spoken",
+    opLabel: "→ <span style='font-family:var(--serif);font-style:italic'>GELU</span> →",
+    max: 1.6, stepMs: 200, cellW: 34,
+    termText: (i, j, a, c) =>
+      `GELU(${a.toFixed(2)}) = <b>${c.toFixed(2)}</b>` +
+      (a < -0.3 ? ` &nbsp;<span style="color:var(--faint)">— muted</span>` : a > 0.3 ? ` &nbsp;<span style="color:var(--faint)">— passes</span>` : ""),
+    colorC: (v) => (Math.abs(v) < 0.05 ? "rgba(92,100,120,0.15)" : heat(v, 1.6)),
+    doneText: "the surviving activations are this token's <b>detected patterns</b>.",
+  });
+
+  /* mini GELU curve for reference */
+  (function () {
+    const svg = $("#gelu-mini");
+    const W = 340, Hh = 150, PAD = 22;
+    const xr = [-3, 3], yr = [-0.5, 3];
+    const px = (x) => PAD + ((x - xr[0]) / (xr[1] - xr[0])) * (W - PAD * 2);
+    const py = (y) => Hh - PAD - ((y - yr[0]) / (yr[1] - yr[0])) * (Hh - PAD * 2);
+    svg.appendChild(svgEl("line", { x1: PAD, y1: py(0), x2: W - PAD, y2: py(0), stroke: C.axis, "stroke-width": 1 }));
+    svg.appendChild(svgEl("line", { x1: px(0), y1: 8, x2: px(0), y2: Hh - PAD, stroke: C.axis, "stroke-width": 1 }));
+    let d = "";
+    for (let x = xr[0]; x <= xr[1]; x += 0.05) d += (x === xr[0] ? "M" : "L") + px(x).toFixed(1) + " " + py(gelu(x)).toFixed(1) + " ";
+    svg.appendChild(svgEl("path", { d, fill: "none", stroke: C.yellow, "stroke-width": 2.2 }));
+    svg.appendChild(svgEl("text", { x: px(-1.9), y: py(0) - 8, "font-size": 11, "font-style": "italic", fill: C.faint }, "muted ≈ 0"));
+    svg.appendChild(svgEl("text", { x: px(1.1), y: py(1.6), "font-size": 11, "font-style": "italic", fill: C.faint }, "passes"));
+  })();
+
+  /* 3 — contract */
+  matMulAnim("#anim-down", {
+    A: G, B: WDN, aRows: TOKENS,
+    aLabel: "GELU(H)", bLabel: "W<sub>down</sub> <span style='color:var(--faint);font-style:normal;font-size:.75rem'>(learned)</span>",
+    cLabel: "ΔX<sub>mlp</sub>", cSub: "back to 4 dims — the MLP's suggested edit",
+    maxA: 1.6, maxB: 0.6, maxC: 1.2, stepMs: 220, cellW: 34,
+    termText: (i, j, arow, bcol, sum) =>
+      dest("ΔX", TOKENS[i], j + 1) +
+      `active neurons of ${TOKENS[i]} · W<sub>down</sub>[:,${j + 1}] = <b>${sum.toFixed(2)}</b>`,
+    doneText: "only the neurons that fired shaped this edit.",
+  });
+
+  /* 4 — add back to the stream */
+  matAddAnim("#anim-mlpadd", {
+    A: Xp, B: dM, rows: TOKENS,
+    aLabel: "X′", bLabel: "ΔX<sub>mlp</sub>",
+    cLabel: "X″ = X′ + ΔX<sub>mlp</sub>", cSub: "one full block done — on to the next",
+    max: 1.6, maxC: 2, stepMs: 240,
+    termText: (i, j, a, b, c) =>
+      `<b>X″[${TOKENS[i]}, ${j + 1}]</b> = ${a.toFixed(2)} + ${b >= 0 ? "" : "("}${b.toFixed(2)}${b >= 0 ? "" : ")"} = <b>${c.toFixed(2)}</b>`,
+    doneText: "block complete: attention edited, MLP edited, the stream carried it all forward.",
+  });
 })();
 
 /* --- parameter breakdown --- */
