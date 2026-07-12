@@ -20,6 +20,7 @@
   </div>
 
   <h3 class="sec-title">Pick a granularity</h3>
+  <p class="caption">choosing the size of the Lego bricks: letters are too tiny, words are too many, subwords are just right.</p>
   <div class="panel">
     <div class="toggle-row">
       <button class="pill-toggle" data-gran="chars">characters</button>
@@ -36,6 +37,7 @@
   </div>
 
   <h3 class="sec-title">Grow a vocabulary: merge the most frequent pair, repeat</h3>
+  <p class="caption">a vocabulary grows like slang: say two things together often enough and they fuse into one word.</p>
   <div class="panel">
     <div class="row" style="margin-bottom:16px">
       <button class="btn-primary" id="merge-btn">Merge most frequent pair</button>
@@ -52,6 +54,7 @@
   </div>
 
   <h3 class="sec-title">The model never sees letters</h3>
+  <p class="caption">you read letters; the model reads barcodes.</p>
   <div class="panel">
     <input type="text" id="see-input" autocomplete="off" spellcheck="false" value="How many r's are in strawberry? What is 12345 + 678?">
     <div class="token-strip" id="see-strip"></div>
@@ -60,6 +63,7 @@
   </div>
 
   <h3 class="sec-title">Vocabulary size is a dial</h3>
+  <p class="caption">a bigger dictionary makes shorter sentences — but a heavier book.</p>
   <div class="panel">
     <div class="slider-row">
       <label for="vocab-slider">vocabulary size <span class="math">V</span></label>

@@ -42,6 +42,7 @@
   </div>
 
   <h3 class="sec-title">① the input <span class="math">X</span></h3>
+  <p class="caption">four tokens arrive as raw material — each is just a list of numbers, meaning nothing yet.</p>
   <div class="panel">
     <div class="mat-row">
       <div class="mat-fig"><div class="mat-label">X&nbsp;&nbsp;(4 tokens × 4 dims)</div><div class="matrix" id="mat-x"></div><div class="mat-sub">one row per token — dense and messy, like real embeddings</div></div>
@@ -50,6 +51,7 @@
   </div>
 
   <h3 class="sec-title">② project: <span style="color:var(--blue)">Q</span> = X·W<sub>Q</sub></h3>
+  <p class="caption">three learned lenses read the <b>same</b> embedding and extract three different things: a question, an advertisement, a payload.</p>
   <div class="panel">
     <div id="anim-q"></div>
   </div>
@@ -62,6 +64,7 @@
   </div>
 
   <h3 class="sec-title">③ scores: every query × every key</h3>
+  <p class="caption">speed dating: every word’s question meets every word’s advertisement, and the dot product scores the match.</p>
   <div class="panel">
     <div id="anim-s"></div>
     <div class="toggle-row" style="margin-top:14px">
@@ -72,6 +75,7 @@
   </div>
 
   <h3 class="sec-title">④ softmax each row → attention weights</h3>
+  <p class="caption">scores become shares: each row’s raw match scores turn into percentages of attention, summing to 100%.</p>
   <div class="panel">
     <div class="mat-row">
       <div class="mat-fig"><div class="mat-label">A = softmax(S)</div><div class="matrix" id="mat-a"></div><div class="mat-sub">each row sums to 100% · −∞ becomes exactly 0</div></div>
@@ -80,18 +84,26 @@
   </div>
 
   <h3 class="sec-title">⑤ output: a weighted mix of values</h3>
+  <p class="caption">the payout: each word walks away with a blend of everyone’s payloads, in proportion to the attention it paid.</p>
   <div class="panel">
     <div id="anim-o"></div>
     <p class="readout" id="o-story"></p>
   </div>
 
-  <h3 class="sec-title">⑥ project back to the stream: O·W<sub>O</sub></h3>
+  <h3 class="sec-title">⑥ translate back: ΔX = O·W<sub>O</sub></h3>
+  <p class="caption">the head did its thinking in a compact 3-dim dialect. <b>W<sub>O</sub> is the translator</b> — it turns the head's verdict back into the stream's full 4-dim language, producing a <b>suggested edit</b> (ΔX) for every token.</p>
   <div class="panel">
     <div id="anim-wo"></div>
-    <p class="caption">the head worked in 3 dims (<span class="math">d<sub>k</sub></span>); W<sub>O</sub> carries its verdict <b>back to the full 4 dims</b> of the residual stream — this is the correction that gets <b>added</b> to each token's vector. no dimension was harmed.</p>
   </div>
 
-  <h3 class="sec-title">⑦ many heads, in parallel</h3>
+  <h3 class="sec-title">⑦ nothing is overwritten: X′ = X + ΔX</h3>
+  <p class="caption">the edit is <b>added on top</b> of what each token already knew — the original embedding survives underneath. this "always add, never replace" habit is the residual stream, and it's why 96-layer stacks still train.</p>
+  <div class="panel">
+    <div id="anim-add"></div>
+  </div>
+
+  <h3 class="sec-title">⑧ many heads, in parallel</h3>
+  <p class="caption">a panel of specialists reading the same sentence — one tracks who-did-what, one watches the previous word, one guards the start. each has its own lenses (W<sub>Q</sub>, W<sub>K</sub>, W<sub>V</sub>).</p>
   <div class="panel">
     <div class="mat-row" id="heads-row"></div>
     <div class="formula" style="margin-bottom:0">MultiHead(X) = concat(head<sub>1</sub>, …, head<sub>h</sub>) · W<sub>O</sub></div>
@@ -282,7 +294,25 @@ function buildWOAnim(autorun) {
       `o${sub(TOKENS[i])} · W<sub>O</sub>[:,${j + 1}] = ` +
       arow.map((a, k) => `(${a.toFixed(2)})(${bcol[k].toFixed(2)})`).join(" + ") +
       ` = <b>${sum.toFixed(2)}</b>`,
-    doneText: "4 columns again — each token's correction, ready to be added to its stream vector.",
+    doneText: "4 columns again — each token's suggested edit, ready to be added.",
+    autoStart: !autorun,
+    onDone: () => buildAddAnim(false),
+  });
+  if (autorun) { anim.run(true); buildAddAnim(true); }
+}
+
+function buildAddAnim(autorun) {
+  const A = attnWeights();
+  const dX = matmul(matmul(A, V), WO);
+  const anim = matAddAnim("#anim-add", {
+    A: X, B: dX, rows: TOKENS,
+    aLabel: "X <span style='color:var(--faint);font-style:normal;font-size:.75rem'>(original embeddings)</span>",
+    bLabel: "ΔX <span style='color:var(--faint);font-style:normal;font-size:.75rem'>(the head's edit)</span>",
+    cLabel: "X′ = X + ΔX", cSub: "the stream, updated — input to the next block",
+    max: 1.6, maxC: 2, stepMs: 300,
+    termText: (i, j, a, b, c) =>
+      `<b>X′[${TOKENS[i]}, ${j + 1}]</b> = ${a.toFixed(2)} + ${b >= 0 ? "" : "("}${b.toFixed(2)}${b >= 0 ? "" : ")"} = <b>${c.toFixed(2)}</b>`,
+    doneText: "the original numbers are still in there — every block only ever nudges them.",
     autoStart: !autorun,
   });
   if (autorun) anim.run(true);

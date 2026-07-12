@@ -21,6 +21,7 @@
   </div>
 
   <h3 class="sec-title">The softmax machine — drag the logits</h3>
+  <p class="caption">raw scores become a betting sheet: every token gets odds, and the odds always sum to 100%.</p>
   <div class="formula">
     p<sub>i</sub> = <span class="frac"><span>e<sup>z<sub>i</sub>&thinsp;/&thinsp;<span class="acc">T</span></sup></span><span>Σ<sub>j</sub> e<sup>z<sub>j</sub>&thinsp;/&thinsp;<span class="acc">T</span></sup></span></span>
   </div>
@@ -40,6 +41,7 @@
   </div>
 
   <h3 class="sec-title">Decision rules, on your distribution</h3>
+  <p class="caption">same odds, different gamblers: one always backs the favorite, one covers the whole field.</p>
   <div class="panel">
     <div class="toggle-row">
       <button class="pill-toggle active" data-strat="sample">pure sampling</button>
@@ -52,6 +54,7 @@
   </div>
 
   <h3 class="sec-title">Training in one slider: loss = −log p(correct)</h3>
+  <p class="caption">training asks one question, trillions of times: how surprised were you by the true next word?</p>
   <div class="panel">
     <div class="slider-row">
       <label>p(actual next token)</label>

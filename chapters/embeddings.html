@@ -20,6 +20,7 @@
   </div>
 
   <h3 class="sec-title">Embedding = one giant lookup table</h3>
+  <p class="caption">a dictionary where every definition is a list of numbers — and words with similar meanings get similar lists.</p>
   <div class="panel">
     <div class="mat-row">
       <div class="mat-fig">
@@ -39,6 +40,7 @@
   </div>
 
   <h3 class="sec-title">Problem: attention can't see word order</h3>
+  <p class="caption">attention reads a bag of words, not a sentence — order has to be smuggled in.</p>
   <div class="panel">
     <div class="toggle-row">
       <button class="pill-toggle" id="swap-btn">⇄ swap the words</button>
@@ -59,6 +61,7 @@
   </div>
 
   <h3 class="sec-title">The fix: add a position fingerprint</h3>
+  <p class="caption">a clock with fast and slow hands: no two positions ever show the same combination.</p>
   <div class="formula">input<sub>i</sub> = W<sub>E</sub>[token<sub>i</sub>] + PE(i)</div>
   <div class="panel">
     <div class="plot-wrap">
@@ -79,6 +82,7 @@
   </div>
 
   <h3 class="sec-title">Similarity = the dot product</h3>
+  <p class="caption">meaning as geometry: the more two vectors point the same way, the more related the words.</p>
   <div class="panel">
     <div class="toggle-row" id="dp-picker-a"></div>
     <div class="toggle-row" id="dp-picker-b"></div>
