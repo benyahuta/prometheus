@@ -96,12 +96,15 @@ function matrixEl(container, M, opts = {}) {
    row of A and column of B being combined, with the arithmetic
    spelled out below. Starts when scrolled into view (once).
    ============================================================ */
-function onScrollOnce(el, fn, threshold = 0.35) {
+function onScrollOnce(el, fn) {
+  /* fire only once the element has risen to roughly mid-screen:
+     shrink the observer's viewport by 45% from the bottom, so the
+     figure must cross into the top 55% of the screen to trigger */
   const obs = new IntersectionObserver((entries) => {
     entries.forEach((e) => {
       if (e.isIntersecting) { obs.disconnect(); fn(); }
     });
-  }, { threshold });
+  }, { rootMargin: "0px 0px -45% 0px", threshold: 0.01 });
   obs.observe(el);
 }
 
