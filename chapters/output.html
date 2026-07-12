@@ -17,37 +17,18 @@
 <main class="deep-main">
   <div class="ch-head">
     <h2>Softmax &amp; <span class="acc-blue">sampling</span></h2>
-    <p class="lede">
-      The overview showed probability bars appearing out of nowhere. Here's the
-      actual pipeline: raw scores called <em>logits</em>, the softmax function
-      that turns them into probabilities, and the sampling strategies that pick
-      the winner.
-    </p>
+    <p class="caption">final vector → <span class="math">z = h·W<sub>U</sub></span> → one raw score (<b>logit</b>) per vocabulary token → softmax → probabilities → pick one.</p>
   </div>
 
-  <h3 class="sec-title">From vector to logits</h3>
-  <p class="prose">
-    After the last block, the final position's vector <span class="math">h</span>
-    is multiplied by one last matrix — the <em>unembedding</em>
-    <span class="math">W<sub>U</sub></span> — producing one raw score per token
-    in the vocabulary:
-  </p>
-  <div class="formula">z = h · W<sub>U</sub> &nbsp;&nbsp;<span style="color:var(--faint);font-style:normal;font-size:.85rem">(one number for each of ~50,000 tokens)</span></div>
-  <p class="prose">
-    These <b>logits</b> can be any real number — negative, huge, whatever. They
-    aren't probabilities yet. That's softmax's job.
-  </p>
-
-  <h3 class="sec-title">The softmax function, live</h3>
+  <h3 class="sec-title">The softmax machine — drag the logits</h3>
   <div class="formula">
     p<sub>i</sub> = <span class="frac"><span>e<sup>z<sub>i</sub>&thinsp;/&thinsp;<span class="acc">T</span></sup></span><span>Σ<sub>j</sub> e<sup>z<sub>j</sub>&thinsp;/&thinsp;<span class="acc">T</span></sup></span></span>
   </div>
-  <p class="prose">
-    Drag the logits. Middle column: each score exponentiated. Right column: each
-    share of the total — the probabilities. Notice softmax's character: it keeps
-    <em>order</em> but exaggerates <em>gaps</em>, and no logit ever gets exactly zero.
-  </p>
   <div class="panel">
+    <div class="toggle-row">
+      <button class="pill-toggle active" data-norm="softmax">softmax: e<sup>z</sup>/Σe<sup>z</sup></button>
+      <button class="pill-toggle" data-norm="plain">naive: z/Σz</button>
+    </div>
     <div id="logit-rows"></div>
     <div class="readout" id="sum-read"></div>
     <div class="slider-row" style="margin-top:16px">
@@ -55,30 +36,10 @@
       <input type="range" id="temp" min="0.1" max="3" step="0.05" value="1">
       <output id="temp-out">1.00</output>
     </div>
-    <p class="note">
-      Temperature divides every logit <em>before</em> the exponent. Small
-      <span class="math">T</span> stretches the gaps apart — the winner takes
-      everything. Large <span class="math">T</span> squashes the logits together —
-      the distribution flattens toward uniform. Same scores, very different
-      personalities.
-    </p>
+    <p class="caption" id="norm-caption">drag a logit negative, then hit <b>naive</b> — negative “probabilities” and division blow-ups. the exponential fixes all of it: always positive, order-preserving, confidence-amplifying.</p>
   </div>
 
-  <h3 class="sec-title">Why exponentiate?</h3>
-  <p class="prose">
-    Three reasons. <b>Positivity</b>: <span class="math">e<sup>z</sup></span> is
-    always positive, so every token keeps a nonzero chance. <b>Order</b>: it's
-    monotonic, so a bigger logit always means a bigger probability.
-    <b>Sharpness</b>: it's exponential, so a modest lead in logits becomes a
-    decisive lead in probability — the model can express confidence. (And during
-    training, its gradients are beautifully simple — no coincidence.)
-  </p>
-
-  <h3 class="sec-title">Picking a token: sampling strategies</h3>
-  <p class="prose">
-    A probability distribution still needs a decision rule. The common ones,
-    applied to your distribution above:
-  </p>
+  <h3 class="sec-title">Decision rules, on your distribution</h3>
   <div class="panel">
     <div class="toggle-row">
       <button class="pill-toggle active" data-strat="sample">pure sampling</button>
@@ -90,16 +51,19 @@
     <p class="readout" id="strat-read"></p>
   </div>
 
-  <h3 class="sec-title">How this connects to training</h3>
-  <p class="prose">
-    Training pushes these probabilities toward the truth. The loss for one
-    position is <b>cross-entropy</b>: <span class="math">−log&thinsp;p(correct
-    token)</span>. Guess the actual next token at 100%? Loss 0. Give it 1%?
-    Loss is large. Every parameter you've met — embeddings,
-    <span class="math">W<sub>Q</sub></span>, <span class="math">W<sub>K</sub></span>,
-    <span class="math">W<sub>V</sub></span>, the MLPs, <span class="math">W<sub>U</sub></span> —
-    is nudged, trillions of times, to make that one number smaller.
-  </p>
+  <h3 class="sec-title">Training in one slider: loss = −log p(correct)</h3>
+  <div class="panel">
+    <div class="slider-row">
+      <label>p(actual next token)</label>
+      <input type="range" id="ce-slider" min="0.01" max="1" step="0.01" value="0.35">
+      <output id="ce-p">35%</output>
+    </div>
+    <div class="row" style="gap:26px;align-items:baseline">
+      <div class="stat"><span class="big-stat" id="ce-loss">1.05</span><span class="stat-label">cross-entropy loss</span></div>
+      <div class="prob-track" style="flex:1;height:26px"><div class="prob-fill" id="ce-bar" style="background:var(--red)"></div></div>
+    </div>
+    <p class="caption">every parameter on every page — W<sub>E</sub>, W<sub>Q</sub>, W<sub>K</sub>, W<sub>V</sub>, the MLPs, W<sub>U</sub> — is nudged trillions of times to shrink this one number.</p>
+  </div>
 
   <nav class="pager">
     <a href="depth.html"><span class="pg-label">← Previous</span>Residual streams &amp; MLPs</a>
@@ -110,8 +74,9 @@
 <script src="../js/deep.js"></script>
 <script>
 const WORDS = ["mat", "sofa", "floor", "dog", "moon"];
-const logits = [4.0, 2.9, 2.6, 0.9, 0.1];
+const logits = [4.0, 2.9, 2.6, 0.9, -1.1];
 let strat = "sample";
+let norm = "softmax";
 
 const rowsEl = $("#logit-rows");
 const rows = WORDS.map((w, i) => {
@@ -147,40 +112,55 @@ const T = () => +$("#temp").value;
 
 function render() {
   $("#temp-out").textContent = T().toFixed(2);
-  const exps = logits.map((z) => Math.exp(z / T()));
-  const sum = exps.reduce((a, b) => a + b, 0);
-  const probs = exps.map((e) => e / sum);
+
+  let probs, sumHtml;
+  if (norm === "softmax") {
+    const exps = logits.map((z) => Math.exp(z / T()));
+    const sum = exps.reduce((a, b) => a + b, 0);
+    probs = exps.map((e) => e / sum);
+    sumHtml = `Σ e<sup>z/T</sup> = ` + exps.map((e) => e.toFixed(1)).join(" + ") + ` = <b>${sum.toFixed(1)}</b>`;
+  } else {
+    const sum = logits.reduce((a, b) => a + b, 0);
+    probs = logits.map((z) => (Math.abs(sum) < 0.05 ? NaN : z / sum));
+    sumHtml = `Σ z = ${logits.map((z) => z.toFixed(1)).join(" + ")} = <b>${sum.toFixed(1)}</b>` +
+      (Math.abs(sum) < 0.05 ? ` — <b style="color:${C.red}">division by ≈0, everything explodes</b>`
+        : probs.some((p) => p < 0) ? ` — <b style="color:${C.red}">negative “probabilities”</b>` : "");
+  }
 
   rows.forEach((row, i) => {
     row.querySelector('[data-role="z"]').textContent = "z = " + logits[i].toFixed(1);
-    row.querySelector(".prob-fill").style.width = (probs[i] * 100).toFixed(1) + "%";
-    row.querySelector('[data-role="p"]').textContent = (probs[i] * 100).toFixed(1) + "%";
+    const fill = row.querySelector(".prob-fill");
+    const p = probs[i];
+    const bad = isNaN(p) || p < 0;
+    fill.style.width = bad ? "100%" : Math.min(100, p * 100).toFixed(1) + "%";
+    fill.style.background = bad ? C.red : "";
+    row.querySelector('[data-role="p"]').textContent = isNaN(p) ? "!!" : (p * 100).toFixed(1) + "%";
   });
-  $("#sum-read").innerHTML =
-    `denominator: Σ e<sup>z/T</sup> = ` +
-    exps.map((e) => e.toFixed(1)).join(" + ") +
-    ` = <b>${sum.toFixed(1)}</b> — every probability is its term divided by this total.`;
+  $("#sum-read").innerHTML = sumHtml;
 
-  /* sampling strategies on the same distribution */
-  const order = probs.map((p, i) => ({ p, i })).sort((a, b) => b.p - a.p);
+  /* decision rules always use the true softmax */
+  const exps = logits.map((z) => Math.exp(z / T()));
+  const sum = exps.reduce((a, b) => a + b, 0);
+  const sp = exps.map((e) => e / sum);
+  const order = sp.map((p, i) => ({ p, i })).sort((a, b) => b.p - a.p);
   let kept = new Set(order.map((o) => o.i));
-  let explain = "Draw randomly in proportion to the probabilities — every token has a chance.";
+  let explain = "roll the dice in proportion to the bars — every token has a chance.";
   if (strat === "greedy") {
     kept = new Set([order[0].i]);
-    explain = `Always take the single most likely token (<b>${WORDS[order[0].i]}</b>). Deterministic — and famously repetitive in long generations.`;
+    explain = `always <b>${WORDS[order[0].i]}</b> — deterministic, famously repetitive.`;
   } else if (strat === "topk") {
     kept = new Set(order.slice(0, 3).map((o) => o.i));
-    explain = "Keep only the 3 most likely tokens, renormalize, then sample among them. The tail is cut off no matter how flat the distribution is.";
+    explain = "keep the best 3, renormalize, sample — the tail is gone no matter what.";
   } else if (strat === "topp") {
     kept = new Set();
     let acc = 0;
     for (const o of order) { kept.add(o.i); acc += o.p; if (acc >= 0.9) break; }
-    explain = `Keep the smallest set of tokens whose probabilities add to 90% (here: ${[...kept].map((i) => WORDS[i]).join(", ")}), renormalize, sample. The cutoff adapts to the shape of the distribution — that's why it's the common default.`;
+    explain = `smallest set reaching 90% (${[...kept].map((i) => WORDS[i]).join(", ")}) — the cutoff adapts to the distribution's shape.`;
   }
-  const keptSum = [...kept].reduce((s, i) => s + probs[i], 0);
+  const keptSum = [...kept].reduce((s, i) => s + sp[i], 0);
   stratRows.forEach((row, i) => {
     const inSet = kept.has(i);
-    const p = inSet ? probs[i] / keptSum : 0;
+    const p = inSet ? sp[i] / keptSum : 0;
     row.style.opacity = inSet ? 1 : 0.3;
     row.querySelector(".prob-fill").style.width = (p * 100).toFixed(1) + "%";
     row.querySelector(".prob-pct").textContent = inSet ? (p * 100).toFixed(1) + "%" : "—";
@@ -196,7 +176,27 @@ $$(".pill-toggle[data-strat]").forEach((b) =>
     render();
   })
 );
+$$(".pill-toggle[data-norm]").forEach((b) =>
+  b.addEventListener("click", () => {
+    norm = b.dataset.norm;
+    $$(".pill-toggle[data-norm]").forEach((x) => x.classList.toggle("active", x === b));
+    render();
+  })
+);
 render();
+
+/* --- cross-entropy slider --- */
+(function () {
+  function renderCE() {
+    const p = +$("#ce-slider").value;
+    const loss = -Math.log(p);
+    $("#ce-p").textContent = Math.round(p * 100) + "%";
+    $("#ce-loss").textContent = loss.toFixed(2);
+    $("#ce-bar").style.width = Math.min(100, (loss / 4.6) * 100) + "%";
+  }
+  $("#ce-slider").addEventListener("input", renderCE);
+  renderCE();
+})();
 </script>
 </body>
 </html>

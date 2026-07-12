@@ -14,11 +14,7 @@
   <div class="hero-inner">
     <p class="hero-kicker">A visual introduction</p>
     <h1>Inside the <span class="acc-blue">Transformer</span></h1>
-    <p class="hero-sub">
-      The architecture behind GPT and Claude, taken apart one idea at a time.
-      Every figure below is interactive — drag the vectors, click the words,
-      sample the tokens.
-    </p>
+    <p class="hero-sub">Drag the vectors. Click the words. Sample the tokens.</p>
     <a class="btn-primary" href="#step-1">Begin</a>
     <div class="hero-flow" aria-hidden="true">
       <span>text</span><span class="arr">→</span>
@@ -46,16 +42,9 @@
   <div class="ch-head">
     <span class="ch-num">Chapter 1 · Tokenization</span>
     <h2>Text becomes <span class="acc-blue">tokens</span></h2>
-    <p class="lede">
-      A language model never sees letters. Input text is first broken into
-      <em>tokens</em> — whole common words, or fragments of rarer ones — and each
-      token is replaced by an integer ID. From here on, the model works only
-      with those numbers.
-    </p>
   </div>
 
   <div class="panel">
-    <label class="field-label" for="tok-input">Input text</label>
     <input id="tok-input" type="text" autocomplete="off" spellcheck="false"
            value="Transformers are surprisingly understandable." />
     <div class="token-strip" id="token-strip" aria-live="polite"></div>
@@ -64,10 +53,11 @@
       <div class="stat"><span class="stat-value" id="char-count">0</span><span class="stat-label">characters</span></div>
       <div class="stat"><span class="stat-value" id="tok-ratio">0</span><span class="stat-label">chars / token</span></div>
     </div>
-    <p class="note">Hover a token to see its ID. Try a rare word —
-      <button class="link-btn" data-try="antidisestablishmentarianism">antidisestablishmentarianism</button> —
-      and watch it shatter into pieces, while common words stay whole.</p>
-    <p class="deeper"><a href="chapters/tokenization.html">Go deeper: byte-pair encoding, run live →</a></p>
+    <div class="toggle-row" style="margin-top:14px">
+      <span class="dim-note">hover a token for its ID · try</span>
+      <button class="link-btn" data-try="antidisestablishmentarianism">antidisestablishmentarianism</button>
+    </div>
+    <p class="deeper"><a href="chapters/tokenization.html">Deep dive: byte-pair encoding →</a></p>
   </div>
 </section>
 
@@ -76,17 +66,9 @@
   <div class="ch-head">
     <span class="ch-num">Chapter 2 · Embeddings</span>
     <h2>Tokens become <span class="acc-blue">vectors</span></h2>
-    <p class="lede">
-      Each token ID indexes into a learned table and comes back as a long column
-      of numbers — a vector in a high-dimensional space. GPT-3's vectors have
-      12,288 coordinates. Crucially, the geometry is meaningful: tokens with
-      similar meanings point in similar directions.
-    </p>
   </div>
 
   <div class="panel">
-    <h3 class="panel-title">One token, as a vector</h3>
-    <p class="panel-sub">Select a word. Each cell is one coordinate — blue negative, red positive. Words from the same family (cat, kitten) get visibly similar patterns.</p>
     <div class="word-picker" id="embed-word-picker"></div>
     <div class="vector-figure">
       <span class="bracket" aria-hidden="true"></span>
@@ -102,21 +84,15 @@
   </div>
 
   <div class="panel">
-    <h3 class="panel-title">A two-dimensional slice of embedding space</h3>
-    <p class="panel-sub">
-      A projection of the space onto two of its directions. Every word is a
-      vector from the origin. <strong>Drag any point</strong> — the readout shows its
-      coordinates and its nearest neighbors by cosine similarity. Meaning
-      clusters emerge on their own.
-    </p>
     <div class="plane-wrap">
       <svg id="embed-map" viewBox="0 0 720 520" role="img" aria-label="Coordinate plane showing word embedding vectors"></svg>
     </div>
-    <div class="readout" id="neighbor-readout">Select or drag a word to inspect its vector.</div>
-    <p class="note">Directions in this space carry meaning. The classic example:
-      <span class="math">king − man + woman ≈ queen</span>.
-      <button class="link-btn" id="analogy-btn">Draw it</button></p>
-    <p class="deeper"><a href="chapters/embeddings.html">Go deeper: the embedding matrix &amp; positional encoding →</a></p>
+    <div class="readout" id="neighbor-readout">Drag any word.</div>
+    <div class="toggle-row">
+      <span class="math">king − man + woman ≈ queen</span>
+      <button class="link-btn" id="analogy-btn">draw it</button>
+    </div>
+    <p class="deeper"><a href="chapters/embeddings.html">Deep dive: the embedding matrix →</a></p>
   </div>
 </section>
 
@@ -124,13 +100,7 @@
 <section class="chapter" id="step-3">
   <div class="ch-head">
     <span class="ch-num">Chapter 3 · Attention</span>
-    <h2>Vectors <span class="acc-blue">talk to each other</span></h2>
-    <p class="lede">
-      So far every word is processed in isolation. Attention is the mechanism
-      that lets each position look back at the others and pull in context —
-      it's how an ambiguous word like <em>it</em> resolves what it refers to.
-      Click any word below to see where its attention flows.
-    </p>
+    <h2>Words <span class="acc-blue">look at each other</span></h2>
   </div>
 
   <div class="panel">
@@ -138,8 +108,8 @@
       <div class="control-group">
         <span class="control-label">ending</span>
         <div class="seg" id="attn-variant">
-          <button class="seg-btn active" data-variant="hungry">…because it was <b>hungry</b></button>
-          <button class="seg-btn" data-variant="delicious">…because it was <b>delicious</b></button>
+          <button class="seg-btn active" data-variant="hungry">…it was <b>hungry</b></button>
+          <button class="seg-btn" data-variant="delicious">…it was <b>delicious</b></button>
         </div>
       </div>
       <div class="control-group">
@@ -155,11 +125,7 @@
       <svg id="attn-svg" viewBox="0 0 760 250" role="img" aria-label="Attention connections between words"></svg>
     </div>
     <p class="readout" id="attn-story"></p>
-    <p class="note">Click <em>it</em>, then flip the ending between <em>hungry</em> and
-      <em>delicious</em>. The attention jumps from <em>robot</em> to <em>apple</em> —
-      context resolving reference. A real model runs dozens of heads like these
-      in parallel, at every layer.</p>
-    <p class="deeper"><a href="chapters/attention.html">Go deeper: queries, keys &amp; values — the actual matrices →</a></p>
+    <p class="deeper"><a href="chapters/attention.html">Deep dive: queries, keys &amp; values →</a></p>
   </div>
 </section>
 
@@ -168,12 +134,6 @@
   <div class="ch-head">
     <span class="ch-num">Chapter 4 · Depth</span>
     <h2>Attention, <span class="acc-blue">stacked</span></h2>
-    <p class="lede">
-      One round of attention plus a small feed-forward network makes a
-      <em>block</em>. Real models stack many blocks, and the vectors are refined
-      a little more at each one. Set the dials and watch the parameter count —
-      the number of learned weights — respond.
-    </p>
   </div>
 
   <div class="panel">
@@ -215,7 +175,7 @@
         <div class="tower-caption">vectors flow upward through <span id="tower-count">12</span> blocks</div>
       </div>
     </div>
-    <p class="deeper"><a href="chapters/depth.html">Go deeper: residual streams &amp; what's inside an MLP →</a></p>
+    <p class="deeper"><a href="chapters/depth.html">Deep dive: residual streams &amp; MLPs →</a></p>
   </div>
 </section>
 
@@ -224,12 +184,6 @@
   <div class="ch-head">
     <span class="ch-num">Chapter 5 · The output</span>
     <h2>A bet on the <span class="acc-blue">next token</span></h2>
-    <p class="lede">
-      All of that machinery exists to produce one thing: a probability for
-      every token in the vocabulary. The <em>temperature</em> parameter reshapes
-      that distribution before a token is drawn — low is conservative, high is
-      adventurous.
-    </p>
   </div>
 
   <div class="panel">
@@ -248,11 +202,7 @@
       <button class="link-btn" id="reset-samples">reset</button>
     </div>
     <div class="sample-log" id="sample-log"></div>
-    <p class="note">Drag <span class="math">T</span> low and sample repeatedly — it's
-      <em>mat</em> almost every time. Drag it high and the tail of the
-      distribution comes alive. This one dial is the difference between a
-      careful assistant and a creative one.</p>
-    <p class="deeper"><a href="chapters/output.html">Go deeper: the softmax function &amp; sampling strategies →</a></p>
+    <p class="deeper"><a href="chapters/output.html">Deep dive: softmax &amp; sampling →</a></p>
   </div>
 </section>
 
@@ -261,11 +211,6 @@
   <div class="ch-head">
     <span class="ch-num">Chapter 6 · Inference</span>
     <h2>Watch it <span class="acc-blue">think</span>, live</h2>
-    <p class="lede">
-      Now the whole loop, running. The context is embedded, flows up through the
-      blocks, becomes a distribution over next tokens — one is sampled, appended
-      to the context, and everything runs again. Generation is just this loop.
-    </p>
   </div>
 
   <div class="panel">
@@ -299,7 +244,7 @@
       <div class="inf-dist" id="inf-dist"></div>
     </div>
 
-    <div class="inf-status" id="inf-status">Press play to start generating.</div>
+    <div class="inf-status" id="inf-status">Press play.</div>
 
     <div class="inf-controls">
       <button class="btn-primary" id="inf-play">▶ Play</button>
@@ -315,26 +260,16 @@
         <output id="inf-temp-out">0.80</output>
       </div>
     </div>
-    <p class="note">Every reply a chatbot has ever written is this loop —
-      predict, sample, append — repeated once per token, at a few dozen tokens
-      per second. Raise the temperature and restart to see the story change.</p>
-    <p class="deeper"><a href="chapters/inference.html">Go deeper: the KV cache, or why this loop is fast →</a></p>
+    <p class="deeper"><a href="chapters/inference.html">Deep dive: the KV cache →</a></p>
   </div>
 </section>
 
 <!-- ================= OUTRO ================= -->
 <section class="chapter outro">
   <div class="ch-head">
-    <h2>That's the whole idea</h2>
-    <p class="lede">
-      Tokenize → embed → attend → stack → predict → sample → repeat. Scale it to
-      billions of parameters and most of the internet, and this loop writes
-      essays, code, and conversation. For the full mathematical story, watch
-      <a href="https://www.youtube.com/watch?v=wjZofJX0v4M" target="_blank" rel="noopener">3Blue1Brown's transformer series</a>,
-      which inspired this page.
-    </p>
+    <h2>tokenize → embed → attend → predict → sample → <span class="acc-blue">repeat</span></h2>
+    <p class="lede">Go further: <a href="https://www.youtube.com/watch?v=wjZofJX0v4M" target="_blank" rel="noopener">3Blue1Brown's transformer series</a>.</p>
   </div>
-  <footer class="footer">All figures are simplified, but honest.</footer>
 </section>
 
 </main>

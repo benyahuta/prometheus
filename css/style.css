@@ -567,3 +567,21 @@ input[type="range"] {
 .deeper { margin: 14px 0 0; font-family: var(--sans); font-size: 0.9rem; }
 .deeper a { color: var(--yellow); text-decoration: none; border-bottom: 1px dotted var(--yellow); }
 .deeper a:hover { color: var(--ink); border-color: var(--ink); }
+
+/* concept cards & micro-captions (visual-first deep pages) */
+.cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; margin: 16px 0; }
+.concept-card {
+  border: 1px solid var(--line); border-left: 3px solid var(--blue);
+  border-radius: 8px; background: var(--panel-2);
+  padding: 14px 16px;
+}
+.concept-card .cc-title { font-family: var(--serif); font-style: italic; font-size: 1.15rem; margin-bottom: 4px; }
+.concept-card .cc-body { font-family: var(--sans); font-size: 0.82rem; color: var(--muted); }
+.caption {
+  font-family: var(--sans); font-size: 0.85rem; color: var(--muted);
+  margin: 6px 0 14px;
+}
+.caption .math, .caption b { color: var(--ink); }
+.big-stat { font-size: 2.2rem; color: var(--yellow); font-variant-numeric: tabular-nums; line-height: 1.2; }
+.memory-bar { display: flex; height: 30px; border-radius: 6px; overflow: hidden; border: 1px solid var(--line); background: var(--panel-2); margin: 12px 0 6px; }
+.memory-fill { background: linear-gradient(90deg, rgba(88,196,221,.7), rgba(252,98,85,.8)); transition: width .2s; }

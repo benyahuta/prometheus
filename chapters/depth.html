@@ -17,55 +17,21 @@
 <main class="deep-main">
   <div class="ch-head">
     <h2>Residual streams &amp; <span class="acc-blue">MLPs</span></h2>
-    <p class="lede">
-      The tower on the main page showed blocks stacking. Inside each block are
-      two machines — attention, then an MLP — and one quiet architectural trick
-      that makes 96 layers trainable at all: nothing ever replaces the vector,
-      everything just <em>adds to it</em>.
-    </p>
   </div>
 
-  <h3 class="sec-title">The residual stream</h3>
-  <p class="prose">
-    Each token's vector flows up through the network like a conveyor belt — the
-    <b>residual stream</b>. Attention and the MLP don't transform it outright;
-    they read it, compute a <em>correction</em>, and add that back:
-  </p>
-  <div class="formula">
-    x ← x + Attention(x) &nbsp;&nbsp;&nbsp; then &nbsp;&nbsp;&nbsp; x ← x + MLP(x)
-  </div>
+  <h3 class="sec-title">Nothing replaces the vector — everything adds to it</h3>
+  <div class="formula">x ← x + Attention(x) &nbsp;&nbsp;&nbsp; x ← x + MLP(x)</div>
   <div class="panel">
     <div class="plot-wrap"><svg id="res-diagram" viewBox="0 0 720 190"></svg></div>
-    <p class="panel-sub" style="margin:10px 0 0">
-      The straight line is the stream; each machine taps it, computes a delta,
-      and merges back in. If a block has nothing useful to say, it can output
-      ≈ 0 and the stream passes through untouched — which is exactly why
-      very deep stacks still train: gradients ride the straight line home.
-    </p>
+    <p class="caption">the straight line is the <b>residual stream</b> — each machine taps it, computes a correction, adds it back. a block with nothing to say adds ≈ 0, so 96-layer stacks still train. <span style="color:var(--faint)">(LayerNorm re-standardizes before each tap — plumbing.)</span></p>
   </div>
-  <p class="prose">
-    (Before each machine the vector is standardized — <b>LayerNorm</b> — a
-    plumbing detail that keeps the numbers in a healthy range. Necessary, not
-    conceptually deep.)
-  </p>
 
-  <h3 class="sec-title">Inside the MLP</h3>
-  <p class="prose">
-    Attention moves information <em>between</em> positions; the MLP does the
-    thinking <em>within</em> each position, one token at a time. Its shape is
-    always the same: expand to about 4× the width, apply a nonlinearity, project
-    back down.
-  </p>
+  <h3 class="sec-title">Inside the MLP: expand, bend, contract</h3>
   <div class="formula">MLP(x) = W<sub>down</sub> · GELU(W<sub>up</sub> · x) &nbsp;&nbsp;<span style="color:var(--faint);font-style:normal;font-size:.85rem">d → 4d → d</span></div>
-  <p class="prose">
-    The nonlinearity is the entire point — without it, any stack of matrices
-    collapses into one matrix, and the whole network could only draw straight
-    lines. Drag the input:
-  </p>
   <div class="panel">
     <div class="toggle-row">
-      <button class="pill-toggle active" data-act="gelu">GELU (what transformers use)</button>
-      <button class="pill-toggle" data-act="relu">ReLU (the classic)</button>
+      <button class="pill-toggle active" data-act="gelu">GELU (transformers)</button>
+      <button class="pill-toggle" data-act="relu">ReLU (classic)</button>
     </div>
     <div class="plot-wrap"><svg id="act-plot" viewBox="0 0 720 280"></svg></div>
     <div class="slider-row">
@@ -73,22 +39,10 @@
       <input type="range" id="act-x" min="-4" max="4" step="0.05" value="1.2">
       <output id="act-out"></output>
     </div>
+    <p class="caption">the bend is the whole point — without it, stacked matrices collapse into one matrix. <b>attention routes, MLPs know</b>: neurons here fire for things like “basketball words” or “inside a URL”.</p>
   </div>
-  <p class="note">
-    Interpretability research finds that MLP neurons often act as learned
-    <em>facts and features</em> — a neuron that fires for "words about
-    basketball", another for "the token is inside a URL". Roughly: attention
-    routes, MLPs know.
-  </p>
 
   <h3 class="sec-title">Where the parameters live</h3>
-  <p class="prose">
-    Per block, attention costs about <span class="math">4d²</span> weights
-    (the three projections plus the output mix) and the MLP about
-    <span class="math">8d²</span> (up and down) — <b>the MLPs hold roughly
-    two-thirds of every block</b>. Add the embedding table and that's the whole
-    model. Drag the dials:
-  </p>
   <div class="panel">
     <div class="slider-row">
       <label for="pb-layers">layers <span class="math">L</span></label>
@@ -122,14 +76,12 @@
   defs.appendChild(m);
   svg.appendChild(defs);
 
-  /* the stream */
   svg.appendChild(svgEl("line", { x1: 20, y1: Y, x2: 690, y2: Y, stroke: C.muted, "stroke-width": 2.4, "marker-end": "url(#arr)" }));
   svg.appendChild(svgEl("text", { x: 24, y: Y - 12, "font-size": 13, "font-style": "italic", fill: C.muted }, "x, the residual stream"));
 
   const box = (cx, label, color) => {
     svg.appendChild(svgEl("rect", { x: cx - 62, y: 18, width: 124, height: 38, rx: 7, fill: alpha(color, 0.1), stroke: color, "stroke-width": 1.4 }));
     svg.appendChild(svgEl("text", { x: cx, y: 42, "text-anchor": "middle", "font-size": 14, fill: color, "font-style": "italic" }, label));
-    /* tap up, merge back */
     svg.appendChild(svgEl("path", { d: `M ${cx - 90} ${Y} C ${cx - 90} 37, ${cx - 80} 37, ${cx - 64} 37`, fill: "none", stroke: color, "stroke-width": 1.6, "marker-end": "url(#arr)" }));
     svg.appendChild(svgEl("path", { d: `M ${cx + 64} 37 C ${cx + 82} 37, ${cx + 88} ${Y - 22}, ${cx + 92} ${Y - 8}`, fill: "none", stroke: color, "stroke-width": 1.6, "marker-end": "url(#arr)" }));
     svg.appendChild(svgEl("circle", { cx: cx + 94, cy: Y, r: 11, fill: C.bg, stroke: color, "stroke-width": 1.6 }));
@@ -138,7 +90,7 @@
   box(200, "attention", C.blue);
   box(470, "MLP", C.gold);
   svg.appendChild(svgEl("text", { x: 355, y: 165, "text-anchor": "middle", "font-size": 12.5, "font-style": "italic", fill: C.faint },
-    "one block — repeated L times, each adding its correction to the stream"));
+    "one block — repeated L times"));
 })();
 
 /* --- activation plot --- */
@@ -211,10 +163,10 @@
       bar.appendChild(seg);
     });
     $("#pb-read").innerHTML =
-      `total ≈ <b>${fmt(total)}</b> — attention ${fmt(attn)}, MLPs ${fmt(mlp)}, embedding table ${fmt(emb)}. ` +
+      `total ≈ <b>${fmt(total)}</b> · ` +
       (emb / total > 0.3
-        ? `At small sizes the embedding table dominates — most of a tiny model is its dictionary.`
-        : `At scale the blocks dominate, and two-thirds of each block is MLP.`);
+        ? `small models are mostly dictionary`
+        : `at scale, ⅔ of every block is MLP`);
   }
   $("#pb-layers").addEventListener("input", render);
   $("#pb-dim").addEventListener("input", render);
