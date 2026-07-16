@@ -11,7 +11,7 @@
 
 <header class="deep-head">
   <a href="../index.html">← Inside the Transformer</a>
-  <span class="ch-num">Chapter 1 · Deep dive</span>
+  <span class="ch-num">Chapter <span class="n">1</span> · Deep dive</span>
 </header>
 
 <main class="deep-main">
@@ -19,8 +19,8 @@
     <h2>Byte-pair <span class="acc-blue">encoding</span></h2>
   </div>
 
-  <h3 class="sec-title">Pick a granularity</h3>
-  <p class="caption">choosing the size of the Lego bricks: letters are too tiny, words are too many, subwords are just right.</p>
+  <h3 class="sec-title">Pick a granularity: how big is one unit of input?</h3>
+  <p class="caption">every token will become one vector, and attention costs grow with sequence length — so this choice matters. characters → few vectors to learn but very long sequences; whole words → short sequences but millions of vectors, most barely trained. subwords balance both.</p>
   <div class="panel">
     <div class="toggle-row">
       <button class="pill-toggle" data-gran="chars">characters</button>
@@ -37,7 +37,7 @@
   </div>
 
   <h3 class="sec-title">Grow a vocabulary: merge the most frequent pair, repeat</h3>
-  <p class="caption">a vocabulary grows like slang: say two things together often enough and they fuse into one word.</p>
+  <p class="caption">BPE builds the token list from data, not from a dictionary: count every adjacent pair in the training text, fuse the most frequent pair into a new token, repeat. fragments that recur often enough earn their own ID — and later, their own vector.</p>
   <div class="panel">
     <div class="row" style="margin-bottom:16px">
       <button class="btn-primary" id="merge-btn">Merge most frequent pair</button>
@@ -53,8 +53,8 @@
     <p class="caption">run all merges — <b>est</b> emerges as a token because English reuses it. 50,000 merges on the whole internet ≈ GPT-2's real vocabulary.</p>
   </div>
 
-  <h3 class="sec-title">The model never sees letters</h3>
-  <p class="caption">you read letters; the model reads barcodes.</p>
+  <h3 class="sec-title">After this step, the text is gone</h3>
+  <p class="caption">what leaves this stage is only a sequence of integer IDs. each ID's sole job is to select one row of the embedding table in chapter 2 — the letters themselves never enter the network, which is why models struggle to count the r's in "strawberry".</p>
   <div class="panel">
     <input type="text" id="see-input" autocomplete="off" spellcheck="false" value="How many r's are in strawberry? What is 12345 + 678?">
     <div class="token-strip" id="see-strip"></div>
@@ -62,8 +62,8 @@
     <p class="caption">the bottom row is <b>all the model receives</b> — spelling and digit-math must be reconstructed from opaque chunk IDs.</p>
   </div>
 
-  <h3 class="sec-title">Vocabulary size is a dial</h3>
-  <p class="caption">a bigger dictionary makes shorter sentences — but a heavier book.</p>
+  <h3 class="sec-title">Vocabulary size trades sequence length for table size</h3>
+  <p class="caption">more merges → longer tokens → fewer vectors flowing through the network per sentence (cheaper attention), but a bigger embedding table to learn, since every ID needs its own row of 12,288 numbers.</p>
   <div class="panel">
     <div class="slider-row">
       <label for="vocab-slider">vocabulary size <span class="math">V</span></label>
@@ -90,6 +90,7 @@
 </main>
 
 <script src="../js/deep.js"></script>
+<script src="../js/typewriter.js?v=2"></script>
 <script>
 const PIECE_COLORS = [C.blue, C.yellow, C.red, C.green, C.teal, C.purple, C.gold];
 const chip = (txt, col, dim) => {

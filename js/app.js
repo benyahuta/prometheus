@@ -15,12 +15,12 @@ const C = {
   teal: "#5cd0b3",
   purple: "#9a72ac",
   gold: "#f0ac5f",
-  ink: "#e8eaf0",
-  muted: "#8b93a7",
-  faint: "#5c6478",
-  grid: "#1a2233",
-  axis: "#39435c",
-  bg: "#0b0e14",
+  ink: "#eceee8",
+  muted: "#9aa79c",
+  faint: "#7b8578",
+  grid: "#1c251d",
+  axis: "#3c473d",
+  bg: "#0d120e",
 };
 
 function alpha(hex, a) {
@@ -186,26 +186,31 @@ function svgEl(tag, attrs = {}, text) {
   dimSlider.addEventListener("input", renderStrip);
   renderStrip();
 
-  /* --- the coordinate plane --- */
+  /* --- the embedding space, in 3-D ---
+     Hand-rolled perspective projection onto the SVG: drag to orbit
+     (yaw/pitch), hover a word for its coordinates and nearest
+     neighbours by 3-D cosine similarity. */
   const W = 720, H = 520;
-  const OX = 360, OY = 268;      // origin in px
-  const U = 50;                  // px per unit
-  const toPx = (x, y) => [OX + x * U, OY - y * U];
-  const toUnits = (px, py) => [(px - OX) / U, (OY - py) / U];
+  const OX = 360, OY = 258;      // screen origin in px
+  const U = 46;                  // px per unit at zero depth
+  const F = 18;                  // perspective distance (units)
+  const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 
   const CLUSTERS = [
-    { name: "animals", color: C.blue, cx: -3.5, cy: 2.3,
+    { name: "animals", color: C.blue, cx: -3.4, cy: 2.2, cz: -1.0,
       words: ["cat", "dog", "kitten", "puppy", "horse", "tiger"] },
-    { name: "food", color: C.yellow, cx: 2.9, cy: 2.6,
+    { name: "food", color: C.yellow, cx: 2.9, cy: 2.5, cz: 1.2,
       words: ["pizza", "apple", "cake", "sushi", "bread"] },
-    { name: "feelings", color: C.red, cx: -3.6, cy: -2.5,
+    { name: "feelings", color: C.red, cx: -3.5, cy: -2.4, cz: 1.4,
       words: ["happy", "sad", "angry", "calm"] },
-    { name: "royalty", color: C.green, cx: 3.0, cy: -2.3,
+    { name: "royalty", color: C.green, cx: 3.0, cy: -2.2, cz: -1.3,
       words: ["king", "queen", "man", "woman", "prince"] },
   ];
-  /* hand-placed offsets (units) so the analogy geometry works */
+  /* hand-placed offsets (units) so king − man + woman lands exactly on queen */
   const OFFSETS = {
-    king: [-0.9, 0.75], queen: [0.95, 0.65], man: [-1.15, -0.7], woman: [0.7, -0.8], prince: [-0.05, -0.05],
+    king: [-0.9, 0.75, -0.45], queen: [0.95, 0.65, 0.45],
+    man: [-1.15, -0.7, -0.55], woman: [0.7, -0.8, 0.35],
+    prince: [-0.05, -0.05, 0.05],
   };
 
   const svg = $("#embed-map");
@@ -225,163 +230,320 @@ function svgEl(tag, attrs = {}, text) {
   CLUSTERS.forEach((cl) => mkMarker("arr-" + cl.name, cl.color));
   svg.appendChild(defs);
 
-  /* gridlines */
-  const gridG = svgEl("g");
-  for (let x = OX % U; x <= W; x += U)
-    gridG.appendChild(svgEl("line", { x1: x, y1: 0, x2: x, y2: H, stroke: C.grid, "stroke-width": 1 }));
-  for (let y = OY % U; y <= H; y += U)
-    gridG.appendChild(svgEl("line", { x1: 0, y1: y, x2: W, y2: y, stroke: C.grid, "stroke-width": 1 }));
-  svg.appendChild(gridG);
+  /* stable layers, re-projected every frame */
+  const floorG = svgEl("g");
+  const axisG = svgEl("g");
+  const analogyG = svgEl("g");
+  const vectorG = svgEl("g");
+  const dotsG = svgEl("g");
+  [floorG, axisG, analogyG, vectorG, dotsG].forEach((g) => svg.appendChild(g));
 
-  /* axes */
-  svg.appendChild(svgEl("line", { x1: 14, y1: OY, x2: W - 14, y2: OY, stroke: C.axis, "stroke-width": 1.6, "marker-end": "url(#arr-axis)", "marker-start": "url(#arr-axis)" }));
-  svg.appendChild(svgEl("line", { x1: OX, y1: H - 14, x2: OX, y2: 14, stroke: C.axis, "stroke-width": 1.6, "marker-end": "url(#arr-axis)", "marker-start": "url(#arr-axis)" }));
-  svg.appendChild(svgEl("text", { x: W - 18, y: OY - 10, "text-anchor": "end", fill: C.faint, "font-size": 13, "font-style": "italic" }, "dimension 1"));
-  svg.appendChild(svgEl("text", { x: OX + 10, y: 26, fill: C.faint, "font-size": 13, "font-style": "italic" }, "dimension 2"));
-  /* axis tick numbers */
-  for (let x = -6; x <= 6; x += 2) {
-    if (x === 0) continue;
-    const [px] = toPx(x, 0);
-    if (px < 20 || px > W - 20) continue;
-    svg.appendChild(svgEl("text", { x: px, y: OY + 16, "text-anchor": "middle", fill: C.faint, "font-size": 11 }, x));
-  }
-  for (let y = -4; y <= 4; y += 2) {
-    if (y === 0) continue;
-    const [, py] = toPx(0, y);
-    if (py < 20 || py > H - 20) continue;
-    svg.appendChild(svgEl("text", { x: OX - 8, y: py + 4, "text-anchor": "end", fill: C.faint, "font-size": 11 }, y));
+  /* camera */
+  let yaw = -0.55, pitch = 0.38;
+
+  function project(x, y, z) {
+    const cy = Math.cos(yaw), sy = Math.sin(yaw);
+    const cp = Math.cos(pitch), sp = Math.sin(pitch);
+    const x1 = x * cy + z * sy;
+    const z1 = -x * sy + z * cy;
+    const y2 = y * cp - z1 * sp;
+    const z2 = y * sp + z1 * cp;          // depth: larger = closer
+    const k = F / (F - z2);
+    return { px: OX + x1 * U * k, py: OY - y2 * U * k, depth: z2, k };
   }
 
-  /* layers: analogy under vectors, vectors under dots */
-  const analogyLayer = svgEl("g");
-  const vectorLayer = svgEl("g");
-  svg.appendChild(analogyLayer);
-  svg.appendChild(vectorLayer);
+  /* floor grid on the x–z plane, below the clusters */
+  const FLOOR = -4.8, EXT = 6;
+  const floorLines = [];
+  for (let i = -EXT; i <= EXT; i += 2) {
+    const a = svgEl("line", { stroke: C.grid, "stroke-width": 1 });
+    const b = svgEl("line", { stroke: C.grid, "stroke-width": 1 });
+    floorG.appendChild(a); floorG.appendChild(b);
+    floorLines.push({ el: a, from: [i, FLOOR, -EXT], to: [i, FLOOR, EXT] });
+    floorLines.push({ el: b, from: [-EXT, FLOOR, i], to: [EXT, FLOOR, i] });
+  }
 
-  const dots = []; // { word, x, y (units), g, cluster }
+  /* the three axes */
+  const AXES = [
+    { from: [-5.4, 0, 0], to: [5.4, 0, 0], label: "dim 1" },
+    { from: [0, -4.6, 0], to: [0, 4.6, 0], label: "dim 2" },
+    { from: [0, 0, -5.4], to: [0, 0, 5.4], label: "dim 3" },
+  ];
+  AXES.forEach((ax) => {
+    ax.el = svgEl("line", { stroke: C.axis, "stroke-width": 1.5, "marker-end": "url(#arr-axis)" });
+    ax.labelEl = svgEl("text", { "text-anchor": "middle", fill: C.faint, "font-size": 12.5, "font-style": "italic" }, ax.label);
+    axisG.appendChild(ax.el);
+    axisG.appendChild(ax.labelEl);
+  });
+
+  /* words */
+  const dots = []; // { word, x, y, z, g, circle, label, cluster }
   CLUSTERS.forEach((cl) => {
-    const [lx, ly] = toPx(cl.cx, cl.cy + 1.6);
-    svg.appendChild(svgEl("text", { x: lx, y: ly, "text-anchor": "middle", fill: alpha(cl.color, 0.5), "font-size": 13, "font-style": "italic" }, cl.name));
+    cl.labelEl = svgEl("text", {
+      "text-anchor": "middle", fill: alpha(cl.color, 0.5),
+      "font-size": 13, "font-style": "italic",
+    }, cl.name);
     cl.words.forEach((w) => {
-      const off = OFFSETS[w] || [(hash01(w, 1) - 0.5) * 2.4, (hash01(w, 2) - 0.5) * 2.0];
-      const x = cl.cx + off[0], y = cl.cy + off[1];
-      const [px, py] = toPx(x, y);
-      const g = svgEl("g", { class: "embed-dot", transform: `translate(${px},${py})` });
-      g.appendChild(svgEl("circle", { r: 5.5, fill: cl.color, stroke: C.bg, "stroke-width": 1.5 }));
-      g.appendChild(svgEl("text", { y: -11, "text-anchor": "middle", "font-size": 14.5, fill: C.ink }, w));
-      svg.appendChild(g);
-      dots.push({ word: w, x, y, g, cluster: cl });
+      const off = OFFSETS[w] || [
+        (hash01(w, 1) - 0.5) * 2.4,
+        (hash01(w, 2) - 0.5) * 2.0,
+        (hash01(w, 3) - 0.5) * 1.9,
+      ];
+      const g = svgEl("g", { class: "embed-dot" });
+      const circle = svgEl("circle", { fill: cl.color, stroke: C.bg, "stroke-width": 1.5 });
+      const label = svgEl("text", { "text-anchor": "middle", fill: C.ink }, w);
+      g.appendChild(circle); g.appendChild(label);
+      dots.push({ word: w, x: cl.cx + off[0], y: cl.cy + off[1], z: cl.cz + off[2], g, circle, label, cluster: cl });
     });
   });
 
   const readout = $("#neighbor-readout");
-  let selected = null;
 
   function cosine(a, b) {
-    const dot = a.x * b.x + a.y * b.y;
-    const na = Math.hypot(a.x, a.y), nb = Math.hypot(b.x, b.y);
+    const dot = a.x * b.x + a.y * b.y + a.z * b.z;
+    const na = Math.hypot(a.x, a.y, a.z), nb = Math.hypot(b.x, b.y, b.z);
     return na && nb ? dot / (na * nb) : 0;
   }
-
-  function renderVector() {
-    vectorLayer.innerHTML = "";
-    if (!selected) return;
-    const [px, py] = toPx(selected.x, selected.y);
-    vectorLayer.appendChild(svgEl("line", {
-      x1: OX, y1: OY, x2: px, y2: py,
-      stroke: selected.cluster.color, "stroke-width": 2.4,
-      "marker-end": `url(#arr-${selected.cluster.name})`,
-      opacity: 0.95,
-    }));
-    const neighbors = dots
-      .filter((d) => d !== selected)
-      .map((d) => ({ d, sim: cosine(selected, d) }))
+  function neighborsOf(d) {
+    return dots
+      .filter((o) => o !== d)
+      .map((o) => ({ d: o, sim: cosine(d, o) }))
       .sort((a, b) => b.sim - a.sim)
       .slice(0, 3);
-    readout.innerHTML =
-      `<b>${selected.word}</b>&nbsp; = (${selected.x.toFixed(1)}, ${selected.y.toFixed(1)}) &nbsp;·&nbsp; most similar: ` +
-      neighbors.map((n) => `<b>${n.d.word}</b> <span style="color:${C.faint}">cos&nbsp;=&nbsp;${n.sim.toFixed(2)}</span>`).join(", ") +
-      ` <span style="color:${C.faint}">&nbsp;(1 = same direction, 0 = unrelated, −1 = opposite)</span>`;
   }
 
-  let dragging = null;
-  function svgPoint(evt) {
-    const pt = svg.createSVGPoint();
-    pt.x = evt.clientX; pt.y = evt.clientY;
-    return pt.matrixTransform(svg.getScreenCTM().inverse());
+  /* hover tag (HTML, so it stays crisp above the SVG) */
+  const wrap = svg.closest(".plane-wrap");
+  const tip = document.createElement("div");
+  tip.className = "embed-tip";
+  wrap.appendChild(tip);
+
+  let hovered = null;
+  function updateTip() {
+    if (!hovered) { tip.classList.remove("show"); return; }
+    const d = hovered;
+    const p = project(d.x, d.y, d.z);
+    tip.style.left = (p.px / W) * 100 + "%";
+    tip.style.top = (p.py / H) * 100 + "%";
+    tip.classList.toggle("below", p.py < 120);
+    tip.innerHTML =
+      `<b>${d.word}</b> <span class="tip-pos">(${d.x.toFixed(1)}, ${d.y.toFixed(1)}, ${d.z.toFixed(1)})</span>` +
+      `<span class="tip-sim">most similar: ` +
+      neighborsOf(d).map((n) =>
+        `<i style="color:${n.d.cluster.color}">${n.d.word}</i> <span class="tip-cos">${n.sim.toFixed(2)}</span>`
+      ).join(" · ") + `</span>`;
+    tip.classList.add("show");
   }
-  dots.forEach((dot) => {
-    dot.g.addEventListener("pointerdown", (e) => {
-      dragging = dot;
-      selected = dot;
-      dot.g.classList.add("dragging");
-      renderVector();
-      e.preventDefault();
+
+  /* --- analogy overlay, drawn in 3-D and re-projected each frame --- */
+  let prims = [];
+  function clearAnalogy() { prims = []; analogyG.innerHTML = ""; }
+  function addPrimLine(from, to, dash) {
+    const el = svgEl("line", {
+      stroke: C.teal, "stroke-width": 2.4, "stroke-linecap": "round",
+      "marker-end": "url(#arr-teal)",
     });
+    if (dash) el.setAttribute("stroke-dasharray", "7 6");
+    analogyG.appendChild(el);
+    prims.push({ type: "line", from, to, el, t0: performance.now() });
+  }
+  function addPrimLabel(pos, text) {
+    const el = svgEl("text", {
+      "text-anchor": "middle", "font-size": 13,
+      "font-style": "italic", fill: C.teal,
+      stroke: C.bg, "stroke-width": 3, "paint-order": "stroke",
+    }, text);
+    analogyG.appendChild(el);
+    prims.push({ type: "label", pos, el });
+  }
+  function addPrimRing(pos) {
+    const el = svgEl("circle", {
+      fill: "none", stroke: C.teal, "stroke-width": 2, "stroke-dasharray": "4 4",
+    });
+    analogyG.appendChild(el);
+    prims.push({ type: "ring", pos, el });
+  }
+
+  /* --- one render pass: project everything --- */
+  function render() {
+    floorLines.forEach(({ el, from, to }) => {
+      const a = project(...from), b = project(...to);
+      el.setAttribute("x1", a.px); el.setAttribute("y1", a.py);
+      el.setAttribute("x2", b.px); el.setAttribute("y2", b.py);
+    });
+
+    AXES.forEach((ax) => {
+      const a = project(...ax.from), b = project(...ax.to);
+      ax.el.setAttribute("x1", a.px); ax.el.setAttribute("y1", a.py);
+      ax.el.setAttribute("x2", b.px); ax.el.setAttribute("y2", b.py);
+      const l = project(ax.to[0] * 1.13, ax.to[1] * 1.13 + (ax.to[1] ? 0 : 0.35), ax.to[2] * 1.13);
+      ax.labelEl.setAttribute("x", l.px);
+      ax.labelEl.setAttribute("y", l.py);
+    });
+
+    /* painter's order: far → near */
+    const order = dots
+      .map((d) => ({ d, p: project(d.x, d.y, d.z) }))
+      .sort((a, b) => a.p.depth - b.p.depth);
+
+    /* cluster labels first, so words always sit above them */
+    CLUSTERS.forEach((cl) => {
+      const p = project(cl.cx, cl.cy + 1.7, cl.cz);
+      cl.labelEl.setAttribute("x", p.px);
+      cl.labelEl.setAttribute("y", p.py);
+      cl.labelEl.setAttribute("opacity", (0.35 + 0.4 * ((p.depth + EXT) / (2 * EXT))).toFixed(2));
+      dotsG.appendChild(cl.labelEl);
+    });
+
+    order.forEach(({ d, p }) => {
+      const t = Math.max(0, Math.min(1, (p.depth + EXT) / (2 * EXT))); // 0 far → 1 near
+      d.fs = 14.5 * (0.75 + 0.35 * t);
+      d.labelDy = 7 + 5.5 * p.k;
+      d.p = p;
+      d.g.setAttribute("transform", `translate(${p.px},${p.py})`);
+      d.g.setAttribute("opacity", (0.45 + 0.55 * t).toFixed(2));
+      d.circle.setAttribute("r", (5.5 * p.k).toFixed(1));
+      d.label.setAttribute("y", (-d.labelDy).toFixed(1));
+      d.label.setAttribute("font-size", d.fs.toFixed(1));
+      dotsG.appendChild(d.g); // re-append in depth order
+    });
+
+    /* declutter: nearest label wins; occluded ones hide (hover still
+       reveals the word in its tag) */
+    const placed = [];
+    const collides = (r) => placed.some((q) =>
+      r.x < q.x + q.w && q.x < r.x + r.w && r.y < q.y + q.h && q.y < r.y + r.h);
+    /* analogy captions claim their space first */
+    prims.forEach((pr) => {
+      if (pr.type !== "label") return;
+      const p = project(...pr.pos);
+      const w = pr.el.textContent.length * 13 * 0.58, h = 16;
+      placed.push({ x: p.px - w / 2, y: p.py - 12 - h, w, h });
+    });
+    const byPriority = [...order].reverse(); // near → far
+    if (hovered) byPriority.sort((a, b) => (b.d === hovered) - (a.d === hovered));
+    byPriority.forEach(({ d, p }) => {
+      const w = d.word.length * d.fs * 0.58, h = d.fs * 1.15;
+      const r = { x: p.px - w / 2, y: p.py - d.labelDy - h, w, h };
+      const hide = collides(r);
+      d.label.setAttribute("opacity", hide ? 0 : 1);
+      if (!hide) placed.push(r);
+    });
+    CLUSTERS.forEach((cl) => {
+      const x = +cl.labelEl.getAttribute("x"), y = +cl.labelEl.getAttribute("y");
+      const w = cl.name.length * 13 * 0.58, h = 15;
+      if (collides({ x: x - w / 2, y: y - h, w, h })) cl.labelEl.setAttribute("opacity", 0);
+    });
+
+    /* vector from the origin to the hovered word */
+    vectorG.innerHTML = "";
+    if (hovered) {
+      const o = project(0, 0, 0), p = project(hovered.x, hovered.y, hovered.z);
+      vectorG.appendChild(svgEl("line", {
+        x1: o.px, y1: o.py, x2: p.px, y2: p.py,
+        stroke: hovered.cluster.color, "stroke-width": 2.2,
+        "marker-end": `url(#arr-${hovered.cluster.name})`, opacity: 0.9,
+      }));
+    }
+
+    /* analogy primitives */
+    const now = performance.now();
+    prims.forEach((pr) => {
+      if (pr.type === "line") {
+        const t = reducedMotion ? 1 : Math.min(1, (now - pr.t0) / 600);
+        const e = 1 - Math.pow(1 - t, 3);
+        const a = project(...pr.from);
+        const b = project(
+          pr.from[0] + (pr.to[0] - pr.from[0]) * e,
+          pr.from[1] + (pr.to[1] - pr.from[1]) * e,
+          pr.from[2] + (pr.to[2] - pr.from[2]) * e
+        );
+        pr.el.setAttribute("x1", a.px); pr.el.setAttribute("y1", a.py);
+        pr.el.setAttribute("x2", b.px); pr.el.setAttribute("y2", b.py);
+      } else if (pr.type === "label") {
+        const p = project(...pr.pos);
+        pr.el.setAttribute("x", p.px);
+        pr.el.setAttribute("y", p.py - 12);
+      } else if (pr.type === "ring") {
+        const p = project(...pr.pos);
+        pr.el.setAttribute("cx", p.px); pr.el.setAttribute("cy", p.py);
+        pr.el.setAttribute("r", (16 * p.k).toFixed(1));
+      }
+    });
+
+    updateTip();
+  }
+
+  /* --- orbit interaction --- */
+  let orbiting = false, moved = false, lastPt = null, downDot = null;
+  let lastInteract = 0;
+
+  dots.forEach((d) => {
+    d.g.addEventListener("pointerenter", () => { hovered = d; });
+    d.g.addEventListener("pointerleave", () => { if (hovered === d) hovered = null; });
+    d.g.addEventListener("pointerdown", () => { downDot = d; });
+  });
+
+  svg.addEventListener("pointerdown", (e) => {
+    orbiting = true; moved = false;
+    lastPt = [e.clientX, e.clientY];
+    svg.setPointerCapture(e.pointerId);
+    svg.classList.add("orbiting");
+    e.preventDefault();
   });
   svg.addEventListener("pointermove", (e) => {
-    if (!dragging) return;
-    const p = svgPoint(e);
-    const [ux, uy] = toUnits(Math.max(20, Math.min(W - 20, p.x)), Math.max(28, Math.min(H - 24, p.y)));
-    dragging.x = ux; dragging.y = uy;
-    const [px, py] = toPx(ux, uy);
-    dragging.g.setAttribute("transform", `translate(${px},${py})`);
-    renderVector();
+    if (!orbiting) return;
+    const dx = e.clientX - lastPt[0], dy = e.clientY - lastPt[1];
+    if (!moved && Math.hypot(dx, dy) < 4) return;
+    moved = true;
+    hovered = null;
+    yaw += dx * 0.0085;
+    pitch = Math.max(-1.25, Math.min(1.25, pitch + dy * 0.0065));
+    lastPt = [e.clientX, e.clientY];
+    lastInteract = performance.now();
   });
-  window.addEventListener("pointerup", () => {
-    if (dragging) dragging.g.classList.remove("dragging");
-    dragging = null;
+  svg.addEventListener("pointerup", () => {
+    if (!moved && downDot) hovered = downDot; // tap on touch = hover
+    orbiting = false; downDot = null;
+    lastInteract = performance.now();
+    svg.classList.remove("orbiting");
   });
+  svg.addEventListener("pointercancel", () => { orbiting = false; downDot = null; });
+  svg.addEventListener("pointerleave", () => { if (!orbiting) hovered = null; });
 
-  /* --- king − man + woman ≈ queen --- */
+  /* slow idle spin so the depth reads instantly; pauses while the
+     reader is looking or dragging, and under reduced-motion */
+  let visible = true;
+  new IntersectionObserver(([e]) => { visible = e.isIntersecting; }).observe(svg);
+  (function tick() {
+    if (visible) {
+      if (!reducedMotion && !orbiting && !hovered &&
+          performance.now() - lastInteract > 2500) {
+        yaw += 0.0016;
+      }
+      render();
+    }
+    requestAnimationFrame(tick);
+  })();
+
+  /* --- king − man + woman ≈ queen, in 3-D --- */
   $("#analogy-btn").addEventListener("click", () => {
-    analogyLayer.innerHTML = "";
+    clearAnalogy();
     const get = (w) => dots.find((d) => d.word === w);
     const king = get("king"), man = get("man"), woman = get("woman"), queen = get("queen");
-    const vx = woman.x - man.x, vy = woman.y - man.y;
+    const v = [woman.x - man.x, woman.y - man.y, woman.z - man.z];
 
-    const animLine = (x1u, y1u, x2u, y2u, dash) => {
-      const [x1, y1] = toPx(x1u, y1u);
-      const [x2, y2] = toPx(x2u, y2u);
-      const l = svgEl("line", {
-        x1, y1, x2: x1, y2: y1,
-        stroke: C.teal, "stroke-width": 2.4, "stroke-linecap": "round",
-        "marker-end": "url(#arr-teal)",
-      });
-      if (dash) l.setAttribute("stroke-dasharray", "7 6");
-      analogyLayer.appendChild(l);
-      const t0 = performance.now();
-      (function step(now) {
-        const t = Math.min(1, (now - t0) / 600);
-        const e = 1 - Math.pow(1 - t, 3);
-        l.setAttribute("x2", x1 + (x2 - x1) * e);
-        l.setAttribute("y2", y1 + (y2 - y1) * e);
-        if (t < 1) requestAnimationFrame(step);
-      })(t0);
-    };
-    const label = (xu, yu, txt) => {
-      const [x, y] = toPx(xu, yu);
-      analogyLayer.appendChild(svgEl("text", {
-        x, y: y - 12, "text-anchor": "middle", "font-size": 13,
-        "font-style": "italic", fill: C.teal,
-      }, txt));
-    };
-
-    animLine(man.x, man.y, woman.x, woman.y);
-    label((man.x + woman.x) / 2, (man.y + woman.y) / 2, "woman − man");
+    addPrimLine([man.x, man.y, man.z], [woman.x, woman.y, woman.z]);
+    addPrimLabel([(man.x + woman.x) / 2, (man.y + woman.y) / 2, (man.z + woman.z) / 2], "woman − man");
     setTimeout(() => {
-      animLine(king.x, king.y, king.x + vx, king.y + vy, true);
-      label(king.x + vx / 2, king.y + vy / 2, "same vector, from king");
+      addPrimLine([king.x, king.y, king.z], [king.x + v[0], king.y + v[1], king.z + v[2]], true);
+      addPrimLabel([king.x + v[0] / 2, king.y + v[1] / 2, king.z + v[2] / 2], "same vector, from king");
     }, 750);
     setTimeout(() => {
-      const [qx, qy] = toPx(queen.x, queen.y);
-      analogyLayer.appendChild(svgEl("circle", {
-        cx: qx, cy: qy, r: 18, fill: "none",
-        stroke: C.teal, "stroke-width": 2, "stroke-dasharray": "4 4",
-      }));
+      addPrimRing([queen.x, queen.y, queen.z]);
       readout.innerHTML = `<b>king − man + woman ≈ queen</b> — the same “gender” vector works anywhere in the space. Directions carry meaning.`;
     }, 1600);
-    setTimeout(() => (analogyLayer.innerHTML = ""), 6500);
+    setTimeout(clearAnalogy, 6500);
   });
 })();
 
@@ -449,12 +611,12 @@ function svgEl(tag, attrs = {}, text) {
         "stroke-width": Math.max(1, wt * 13),
         "stroke-opacity": Math.max(0.22, wt),
         "stroke-linecap": "round",
-        style: wt > 0.3 ? `filter: drop-shadow(0 0 6px ${alpha(col, 0.5)})` : "",
       }));
       if (wt > 0.05) {
         svg.appendChild(svgEl("text", {
-          x: x2, y: y - 36, "text-anchor": "middle",
+          x: x2, y: y - 38, "text-anchor": "middle",
           "font-size": 11.5, fill: col,
+          stroke: C.bg, "stroke-width": 3, "paint-order": "stroke",
         }, Math.round(wt * 100) + "%"));
       }
     });
@@ -499,13 +661,13 @@ function svgEl(tag, attrs = {}, text) {
     if (selected === 6) {
       const target = variant === "hungry" ? "robot" : "apple";
       const why = variant === "hungry" ? "robots get hungry; apples don't" : "apples are delicious; robots aren't";
-      el.innerHTML = `<b>“it”</b> attends mostly to <b>“${target}”</b>, because ${why}. Flip the ending and the attention flips with it — context resolving reference.`;
+      el.innerHTML = `<b>“it”</b> pulls mostly from <b>“${target}”</b>, because ${why}. Its vector — identical for every “it” ever typed — gets nudged toward <i>${target}</i>-ness, right there in the space from chapter 2. Flip the ending and the nudge flips with it.`;
     } else {
       const top = weights
         .map((w, i) => ({ w, i }))
         .filter((o) => o.i !== selected)
         .sort((a, b) => b.w - a.w)[0];
-      el.innerHTML = `<b>“${name}”</b> attends mostly to <b>“${ws[top.i].replace(/\.$/, "")}”</b>. Every position does this simultaneously, at every layer.`;
+      el.innerHTML = `<b>“${name}”</b> pulls mostly from <b>“${ws[top.i].replace(/\.$/, "")}”</b> — that word's meaning flows in and refines this one's vector. Every position does this simultaneously, at every layer.`;
     }
   }
 
@@ -785,7 +947,6 @@ function svgEl(tag, attrs = {}, text) {
   const distEl = $("#inf-dist");
   const statusEl = $("#inf-status");
   const playBtn = $("#inf-play");
-  const nodes = Object.fromEntries($$("#inf-pipeline .pipe-node").map((n) => [n.dataset.node, n]));
 
   let promptIdx = 0;
   let ctx = [];
@@ -836,8 +997,207 @@ function svgEl(tag, attrs = {}, text) {
     });
   }
 
-  function setHot(name, on) { nodes[name]?.classList.toggle("hot", on); }
-  function clearHot() { Object.values(nodes).forEach((n) => n.classList.remove("hot")); }
+  /* ---------- the stage: words → vectors → cubes → distribution ---------- */
+  const stage = $("#inf-stage");
+  const MAXSHOW = 6;
+  const S_TOP = 26, S_BOT = 252;
+  const X_WORD = 100, X_START = 118, X_END = 700;
+  const CUBE_W = 76, CUBE_D = 16, DYF = 0.7;
+  const CUBES = [
+    { x: 192, kind: "attn" }, { x: 322, kind: "mlp" },
+    { x: 452, kind: "attn" }, { x: 582, kind: "mlp" },
+  ];
+  const CELLS = 5, CELL_W = 7, CELL_H = 12, STRIP_W = CELLS * (CELL_W + 1) - 1;
+
+  /* diverging blue ↔ red cells, same language as the chapter-2 strips */
+  const cellColor = (v) => {
+    const mid = [40, 52, 44];
+    const pole = v < 0 ? [88, 196, 221] : [252, 98, 85];
+    const t = Math.min(1, Math.abs(v));
+    return `rgb(${mid.map((m, i) => Math.round(m + (pole[i] - m) * t)).join(",")})`;
+  };
+  /* a token's vector after `phase` transformations — deterministic, so
+     the same word always enters the same and leaves changed */
+  const vecVal = (word, phase, k) => Math.sin(hash01(word, phase * 13 + k * 3) * 12.9);
+
+  const laneG = svgEl("g"), cubeG = svgEl("g"), arcG = svgEl("g"),
+        stripG = svgEl("g"), wordG = svgEl("g"), noteG = svgEl("g");
+  [laneG, cubeG, arcG, stripG, wordG, noteG].forEach((g) => stage.appendChild(g));
+
+  function buildCube(c, idx) {
+    const col = c.kind === "attn" ? C.blue : C.gold;
+    const x = c.x, y = S_TOP, w = CUBE_W, h = S_BOT - S_TOP, d = CUBE_D;
+    const g = svgEl("g", { class: "inf-cube" });
+    const pts = (a) => a.map((p) => p.join(",")).join(" ");
+    /* side + top faces */
+    g.appendChild(svgEl("polygon", {
+      points: pts([[x + w, y], [x + w + d, y - d * DYF], [x + w + d, y + h - d * DYF], [x + w, y + h]]),
+      fill: alpha(col, 0.05), stroke: alpha(col, 0.2), "stroke-width": 1,
+    }));
+    g.appendChild(svgEl("polygon", {
+      points: pts([[x, y], [x + d, y - d * DYF], [x + w + d, y - d * DYF], [x + w, y]]),
+      fill: alpha(col, 0.08), stroke: alpha(col, 0.2), "stroke-width": 1,
+    }));
+    /* depth slices, back → front: heads of an attention block,
+       weight matrices of an MLP */
+    const n = c.kind === "attn" ? 4 : 2;
+    c.slices = [];
+    for (let i = 0; i < n; i++) {
+      const t = (n - i) / (n + 1);
+      const s = svgEl("rect", {
+        x: x + d * t, y: y - d * DYF * t, width: w, height: h, rx: 1.5,
+        fill: col, "fill-opacity": 0.06,
+        stroke: alpha(col, 0.3), "stroke-width": 1,
+        class: "cube-slice",
+      });
+      s.style.setProperty("--i", i);
+      g.appendChild(s);
+      c.slices.push(s);
+    }
+    g.appendChild(svgEl("rect", {
+      x, y, width: w, height: h, rx: 2, fill: "none",
+      stroke: col, "stroke-opacity": 0.5, "stroke-width": 1.2, class: "cube-front",
+    }));
+    g.appendChild(svgEl("text", {
+      x: x + w / 2 + d / 2, y: S_BOT + 17, "text-anchor": "middle",
+      "font-size": 11.5, "font-style": "italic", fill: C.faint,
+    }, c.kind === "attn" ? "attention" : "MLP"));
+    c.el = g;
+    cubeG.appendChild(g);
+  }
+  CUBES.forEach(buildCube);
+  [0, 1].forEach((L) => {
+    const cx = (CUBES[L * 2].x + CUBES[L * 2 + 1].x + CUBE_W) / 2 + CUBE_D / 2;
+    cubeG.appendChild(svgEl("text", {
+      x: cx, y: S_BOT + 36, "text-anchor": "middle",
+      "font-size": 11, "font-style": "italic", fill: C.faint,
+    }, L === 0 ? "layer 1" : "layer 2 ⋯ of many"));
+  });
+
+  let stageTokens = [], laneY = [], strips = [];
+
+  function stageBuild() {
+    stageTokens = ctx.slice(-MAXSHOW);
+    const n = stageTokens.length;
+    laneY = stageTokens.map((_, i) => (n === 1 ? 140 : 46 + i * (196 / (n - 1))));
+    laneG.innerHTML = ""; wordG.innerHTML = ""; stripG.innerHTML = "";
+    arcG.innerHTML = ""; noteG.innerHTML = "";
+    strips = [];
+    stageTokens.forEach((w, i) => {
+      laneG.appendChild(svgEl("line", {
+        x1: X_START - 6, y1: laneY[i], x2: X_END, y2: laneY[i],
+        stroke: C.grid, "stroke-width": 1,
+      }));
+      const isLast = i === n - 1;
+      wordG.appendChild(svgEl("text", {
+        x: X_WORD, y: laneY[i] + 4.5, "text-anchor": "end", "font-size": 13.5,
+        fill: isLast ? C.ink : C.muted, "font-weight": isLast ? 600 : 400,
+      }, w));
+    });
+    if (ctx.length > MAXSHOW) {
+      noteG.appendChild(svgEl("text", {
+        x: X_WORD, y: 16, "text-anchor": "end", "font-size": 10.5,
+        "font-style": "italic", fill: C.faint,
+      }, `⋯ ${ctx.length - MAXSHOW} earlier tokens`));
+    }
+  }
+
+  function stripColors(phase) {
+    strips.forEach((g, i) => {
+      [...g.querySelectorAll("rect.cell")].forEach((r, k) =>
+        r.setAttribute("fill", cellColor(vecVal(stageTokens[i], phase, k))));
+    });
+  }
+
+  async function glideAll(centerX, ms, myRun) {
+    const dur = ms / speedOf();
+    strips.forEach((g, i) => {
+      g.style.transition = `transform ${dur}ms cubic-bezier(.45,.05,.3,1), opacity .3s`;
+      g.style.transform = `translate(${centerX - STRIP_W / 2}px, ${laneY[i]}px)`;
+    });
+    await sleep(ms + 40, myRun);
+  }
+
+  async function stageEmbed(myRun) {
+    stageBuild();
+    stageTokens.forEach((w, i) => {
+      const g = svgEl("g", { class: "inf-vec" });
+      for (let k = 0; k < CELLS; k++) {
+        const r = svgEl("rect", {
+          x: k * (CELL_W + 1), y: -CELL_H / 2, width: CELL_W, height: CELL_H,
+          rx: 1.5, fill: cellColor(vecVal(w, 0, k)), class: "cell",
+        });
+        r.style.transition = "fill .35s";
+        g.appendChild(r);
+      }
+      if (i === stageTokens.length - 1) {
+        g.appendChild(svgEl("rect", {
+          x: -3, y: -CELL_H / 2 - 3, width: STRIP_W + 6, height: CELL_H + 6,
+          rx: 3, fill: "none", stroke: alpha(C.yellow, 0.85), "stroke-width": 1,
+        }));
+      }
+      g.style.transform = `translate(${X_START}px, ${laneY[i]}px)`;
+      g.style.opacity = 0;
+      stripG.appendChild(g);
+      strips.push(g);
+    });
+    await sleep(60, myRun);
+    strips.forEach((g) => { g.style.transition = "opacity .3s"; g.style.opacity = 1; });
+    await sleep(400, myRun);
+  }
+
+  async function stageAttention(L, myRun) {
+    const cube = CUBES[L * 2];
+    cube.el.classList.add("active");
+    await glideAll(cube.x + (CUBE_W + CUBE_D) / 2, 520, myRun);
+    /* every token reaches back along the context */
+    const axisX = cube.x + CUBE_W / 2;
+    const arcs = [];
+    for (let i = 1; i < stageTokens.length; i++) {
+      for (let j = 0; j < i; j++) {
+        const wt = 0.15 + 0.85 * hash01(stageTokens[i] + stageTokens[j], L + 3);
+        const bulge = 16 + (i - j) * 9;
+        const a = svgEl("path", {
+          d: `M ${axisX} ${laneY[i]} C ${axisX - bulge} ${laneY[i]}, ${axisX - bulge} ${laneY[j]}, ${axisX} ${laneY[j]}`,
+          fill: "none", stroke: C.blue,
+          "stroke-width": (0.8 + wt * 2.4).toFixed(1),
+          "stroke-linecap": "round", opacity: 0,
+        });
+        a.style.transition = "opacity .25s";
+        arcG.appendChild(a);
+        arcs.push([a, 0.14 + wt * 0.56]);
+      }
+    }
+    await sleep(50, myRun);
+    arcs.forEach(([a, o]) => (a.style.opacity = o));
+    await sleep(620, myRun);
+    stripColors(L * 2 + 1); /* the vectors leave changed */
+    arcs.forEach(([a]) => (a.style.opacity = 0));
+    await sleep(280, myRun);
+    arcG.innerHTML = "";
+    cube.el.classList.remove("active");
+  }
+
+  async function stageMLP(L, myRun) {
+    const cube = CUBES[L * 2 + 1];
+    cube.el.classList.add("active");
+    await glideAll(cube.x + (CUBE_W + CUBE_D) / 2, 520, myRun);
+    await sleep(430, myRun);
+    stripColors(L * 2 + 2);
+    await sleep(260, myRun);
+    cube.el.classList.remove("active");
+  }
+
+  async function stageUnembed(myRun) {
+    await glideAll(X_END - STRIP_W / 2 - 4, 480, myRun);
+    strips.forEach((g, i) => { if (i < strips.length - 1) g.style.opacity = 0.22; });
+    await sleep(340, myRun);
+  }
+
+  function stageCalm() {
+    CUBES.forEach((c) => c.el.classList.remove("active"));
+    arcG.innerHTML = "";
+  }
 
   async function step() {
     if (busy || done) return;
@@ -851,20 +1211,16 @@ function svgEl(tag, attrs = {}, text) {
       [...ctxEl.children].forEach((c) => c.classList.remove("reading"));
 
       /* 2 — forward pass */
-      statusEl.innerHTML = "Embedding tokens as vectors…";
-      setHot("embed", true);
-      await sleep(360, myRun);
-      setHot("embed", false);
-      for (let b = 0; b < 4; b++) {
-        statusEl.innerHTML = `Block ${b + 1}: attention + feed-forward…`;
-        setHot("b" + b, true);
-        await sleep(260, myRun);
-        setHot("b" + b, false);
+      statusEl.innerHTML = "Each word becomes a vector…";
+      await stageEmbed(myRun);
+      for (let L = 0; L < 2; L++) {
+        statusEl.innerHTML = `Layer ${L + 1} — attention: every token reaches back along the context…`;
+        await stageAttention(L, myRun);
+        statusEl.innerHTML = `Layer ${L + 1} — MLP: each vector refined on its own…`;
+        await stageMLP(L, myRun);
       }
-      statusEl.innerHTML = "Projecting back to vocabulary scores…";
-      setHot("unembed", true);
-      await sleep(300, myRun);
-      setHot("unembed", false);
+      statusEl.innerHTML = "The <b>last</b> vector — now carrying the whole context — is matched against every word…";
+      await stageUnembed(myRun);
 
       /* 3 — distribution */
       const dist = distFor(ctx[ctx.length - 1], tempOf());
@@ -892,7 +1248,7 @@ function svgEl(tag, attrs = {}, text) {
     } catch (e) {
       /* cancelled — a reset/new prompt took over */
     } finally {
-      if (myRun === run) { clearHot(); busy = false; }
+      if (myRun === run) { stageCalm(); busy = false; }
     }
   }
 
@@ -914,7 +1270,8 @@ function svgEl(tag, attrs = {}, text) {
     ctx = [...PROMPTS[promptIdx]];
     renderCtx();
     distEl.innerHTML = "";
-    clearHot();
+    stageCalm();
+    stageBuild();
     statusEl.textContent = "Press play to start generating.";
   }
 
@@ -957,4 +1314,15 @@ function svgEl(tag, attrs = {}, text) {
     { rootMargin: "-40% 0px -50% 0px" }
   );
   sections.forEach((s) => obs.observe(s));
+
+  // the margin numerals appear only once the hero (which carries the full
+  // contents list) has left the screen
+  const nav = $("#stepnav");
+  const hero = document.querySelector(".hero");
+  if (nav && hero) {
+    new IntersectionObserver(
+      ([e]) => nav.classList.toggle("shown", !e.isIntersecting),
+      { threshold: 0.15 }
+    ).observe(hero);
+  }
 })();

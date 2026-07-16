@@ -11,17 +11,17 @@
 
 <header class="deep-head">
   <a href="../index.html">← Inside the Transformer</a>
-  <span class="ch-num">Chapter 5 · Deep dive</span>
+  <span class="ch-num">Chapter <span class="n">5</span> · Deep dive</span>
 </header>
 
 <main class="deep-main">
   <div class="ch-head">
     <h2>Softmax &amp; <span class="acc-blue">sampling</span></h2>
-    <p class="caption">final vector → <span class="math">z = h·W<sub>U</sub></span> → one raw score (<b>logit</b>) per vocabulary token → softmax → probabilities → pick one.</p>
+    <p class="caption">final vector → "which word does this most resemble?" → one raw score (<b>logit</b>) per candidate word → softmax → probabilities → pick one.</p>
   </div>
 
-  <h3 class="sec-title">The softmax machine — drag the logits</h3>
-  <p class="caption">raw scores become a betting sheet: every token gets odds, and the odds always sum to 100%.</p>
+  <h3 class="sec-title">From one vector to 50,257 scores — drag the logits</h3>
+  <p class="caption">after 96 layers of edits, the final vector <b>is</b> the model's prediction — written as a direction in space. to read it out, the model asks of each word it knows: <i>"how closely do you point the way this vector points?"</i> — words that match the direction score high, unrelated ones near zero. that's one raw score (a <b>logit</b>) per candidate word; softmax turns the scores into probabilities that sum to 1.</p>
   <div class="formula">
     p<sub>i</sub> = <span class="frac"><span>e<sup>z<sub>i</sub>&thinsp;/&thinsp;<span class="acc">T</span></sup></span><span>Σ<sub>j</sub> e<sup>z<sub>j</sub>&thinsp;/&thinsp;<span class="acc">T</span></sup></span></span>
   </div>
@@ -40,8 +40,8 @@
     <p class="caption" id="norm-caption">drag a logit negative, then hit <b>naive</b> — negative “probabilities” and division blow-ups. the exponential fixes all of it: always positive, order-preserving, confidence-amplifying.</p>
   </div>
 
-  <h3 class="sec-title">Decision rules, on your distribution</h3>
-  <p class="caption">same odds, different gamblers: one always backs the favorite, one covers the whole field.</p>
+  <h3 class="sec-title">One distribution, different ways to pick the token</h3>
+  <p class="caption">the model's output is a <b>distribution</b>, not a word — a separate rule collapses it to one token. greedy always takes the top choice (repetitive); sampling draws proportionally (varied); temperature rescales the logits before softmax to sharpen or flatten the choice.</p>
   <div class="panel">
     <div class="toggle-row">
       <button class="pill-toggle active" data-strat="sample">pure sampling</button>
@@ -54,7 +54,7 @@
   </div>
 
   <h3 class="sec-title">Training in one slider: loss = −log p(correct)</h3>
-  <p class="caption">training asks one question, trillions of times: how surprised were you by the true next word?</p>
+  <p class="caption">training compares the predicted distribution against the actual next token: loss = −log of the probability the model assigned it. confidently right ≈ 0 loss; confidently wrong → enormous loss — and every weight the vector touched gets nudged to shrink it.</p>
   <div class="panel">
     <div class="slider-row">
       <label>p(actual next token)</label>
@@ -65,7 +65,7 @@
       <div class="stat"><span class="big-stat" id="ce-loss">1.05</span><span class="stat-label">cross-entropy loss</span></div>
       <div class="prob-track" style="flex:1;height:26px"><div class="prob-fill" id="ce-bar" style="background:var(--red)"></div></div>
     </div>
-    <p class="caption">every parameter on every page — W<sub>E</sub>, W<sub>Q</sub>, W<sub>K</sub>, W<sub>V</sub>, the MLPs, W<sub>U</sub> — is nudged trillions of times to shrink this one number.</p>
+    <p class="caption">every learned number on every page — the embedding table, the attention projections, the MLPs, the word vectors used in the final scoring — is nudged trillions of times to shrink this one number.</p>
   </div>
 
   <nav class="pager">
@@ -75,6 +75,7 @@
 </main>
 
 <script src="../js/deep.js"></script>
+<script src="../js/typewriter.js?v=2"></script>
 <script>
 const WORDS = ["mat", "sofa", "floor", "dog", "moon"];
 const logits = [4.0, 2.9, 2.6, 0.9, -1.1];

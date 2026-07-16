@@ -11,7 +11,7 @@
 
 <header class="deep-head">
   <a href="../index.html">← Inside the Transformer</a>
-  <span class="ch-num">Chapter 2 · Deep dive</span>
+  <span class="ch-num">Chapter <span class="n">2</span> · Deep dive</span>
 </header>
 
 <main class="deep-main">
@@ -19,8 +19,8 @@
     <h2>The embedding <span class="acc-blue">matrix</span></h2>
   </div>
 
-  <h3 class="sec-title">Embedding = one giant lookup table</h3>
-  <p class="caption">a dictionary where every definition is a list of numbers — and words with similar meanings get similar lists.</p>
+  <h3 class="sec-title">Each token ID selects one row: the vector that will travel the whole network</h3>
+  <p class="caption">this lookup is where a token gets its starting vector — the object every later layer will read and edit. training slides these rows around so that tokens used in similar contexts end up pointing in similar directions; "meaning" is nothing more than <b>where the row currently sits</b>.</p>
   <div class="panel">
     <div class="mat-row">
       <div class="mat-fig">
@@ -39,8 +39,8 @@
     <p class="caption">GPT-3's real table: 50,257 × 12,288 = <b>617M learned numbers</b> before any thinking happens.</p>
   </div>
 
-  <h3 class="sec-title">Problem: attention can't see word order</h3>
-  <p class="caption">attention reads a bag of words, not a sentence — order has to be smuggled in.</p>
+  <h3 class="sec-title">Problem: the vectors carry no trace of word order</h3>
+  <p class="caption">attention only compares vectors pairwise and averages them — nothing in that arithmetic knows which token came first. if the vectors themselves don't encode position, "dog bites man" and "man bites dog" produce identical updates.</p>
   <div class="panel">
     <div class="toggle-row">
       <button class="pill-toggle" id="swap-btn">⇄ swap the words</button>
@@ -60,8 +60,8 @@
     <p class="readout" id="order-read"></p>
   </div>
 
-  <h3 class="sec-title">The fix: add a position fingerprint</h3>
-  <p class="caption">a clock with fast and slow hands: no two positions ever show the same combination.</p>
+  <h3 class="sec-title">The fix: write the position into the vector itself</h3>
+  <p class="caption">before layer 1, a position-dependent vector is <b>added</b> to each embedding — a unique pattern of fast- and slow-varying values per position, so no two positions get the same nudge. from here on, "i am token #3" is physically part of the vector, and attention can act on it.</p>
   <div class="formula">input<sub>i</sub> = W<sub>E</sub>[token<sub>i</sub>] + PE(i)</div>
   <div class="panel">
     <div class="plot-wrap">
@@ -81,8 +81,8 @@
     </div>
   </div>
 
-  <h3 class="sec-title">Similarity = the dot product</h3>
-  <p class="caption">meaning as geometry: the more two vectors point the same way, the more related the words.</p>
+  <h3 class="sec-title">The dot product: the one operation the model has for comparing vectors</h3>
+  <p class="caption">multiply matching coordinates, sum them up: vectors pointing the same way score high, unrelated ones near zero. every "how relevant is X to Y?" judgment in this network — including every attention score in chapter 3 — is this single operation.</p>
   <div class="panel">
     <div class="toggle-row" id="dp-picker-a"></div>
     <div class="toggle-row" id="dp-picker-b"></div>
@@ -97,6 +97,7 @@
 </main>
 
 <script src="../js/deep.js"></script>
+<script src="../js/typewriter.js?v=2"></script>
 <script>
 /* --- the lookup table --- */
 const VOCAB = ["cat", "kitten", "dog", "pizza", "moon", "king", "queen", "the"];

@@ -11,7 +11,7 @@
 
 <header class="deep-head">
   <a href="../index.html">← Inside the Transformer</a>
-  <span class="ch-num">Chapter 6 · Deep dive</span>
+  <span class="ch-num">Chapter <span class="n">6</span> · Deep dive</span>
 </header>
 
 <main class="deep-main">
@@ -20,8 +20,8 @@
     <p class="caption">causal masking means old tokens never change — so their <span class="math">K</span>, <span class="math">V</span> rows are computed <b>once</b> and remembered.</p>
   </div>
 
-  <h3 class="sec-title">Watch the cache grow</h3>
-  <p class="caption">notes about old tokens never change — so write them once, read them forever.</p>
+  <h3 class="sec-title">Old tokens' K and V vectors never change — so keep them</h3>
+  <p class="caption">causal masking means a token's K and V depend only on tokens before it. once computed, they're frozen — so each new token computes just its <b>own</b> Q, K, V and reads everyone else's from the cache instead of re-running the whole stack.</p>
   <div class="panel">
     <div class="row" style="margin-bottom:14px">
       <button class="btn-primary" id="kv-step">Generate next token</button>
@@ -56,7 +56,7 @@
   </div>
 
   <h3 class="sec-title">The price: memory — drag the context</h3>
-  <p class="caption">one page of notes per token: a full notebook is a full context window.</p>
+  <p class="caption">every cached token holds a K and V vector at <b>every layer and every head</b> — context length × layers × heads × dims numbers sitting in GPU memory. "the context window is full" means this storage is full.</p>
   <div class="panel">
     <div class="slider-row">
       <label for="ctx-slider">context length</label>
@@ -69,21 +69,21 @@
       <div class="stat"><span class="big-stat" id="mem-gb">4</span><span class="stat-label">GB of cache (GPT-3-scale)</span></div>
       <div class="stat"><span class="stat-value" id="mem-note" style="font-size:1.1rem;color:var(--muted)"></span><span class="stat-label">&nbsp;</span></div>
     </div>
-    <p class="caption">K + V, per token, per layer, per head — “the context window is full” means <b>this bar is full</b>.</p>
+    <p class="caption">the bar is the cache: K + V for every token, at every layer, in every head — watch it scale as you drag.</p>
   </div>
 
   <h3 class="sec-title">Why it still feels fast</h3>
   <p class="caption">three tricks stack up to hide the loop’s cost.</p>
   <div class="cards">
-    <div class="concept-card" style="border-left-color:var(--blue)">
+    <div class="concept-card">
       <div class="cc-title" style="color:var(--blue)">batching</div>
       <div class="cc-body">many users' tokens ride one matrix multiply</div>
     </div>
-    <div class="concept-card" style="border-left-color:var(--green)">
+    <div class="concept-card">
       <div class="cc-title" style="color:var(--green)">speculative decoding</div>
       <div class="cc-body">a tiny model drafts ahead; the big one verifies in a single parallel pass</div>
     </div>
-    <div class="concept-card" style="border-left-color:var(--gold)">
+    <div class="concept-card">
       <div class="cc-title" style="color:var(--gold)">quantization</div>
       <div class="cc-body">fewer bits per weight → less memory traffic</div>
     </div>
@@ -96,6 +96,7 @@
 </main>
 
 <script src="../js/deep.js"></script>
+<script src="../js/typewriter.js?v=2"></script>
 <script>
 const SENT = ["The", "robot", "dreamed", "of", "electric", "sheep", "."];
 const PROMPT_LEN = 2;

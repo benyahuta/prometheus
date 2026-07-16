@@ -11,18 +11,34 @@
 
 <!-- ================= HERO ================= -->
 <header class="hero">
-  <div class="hero-inner">
-    <p class="hero-kicker">A visual introduction</p>
-    <h1>Inside the <span class="acc-blue">Transformer</span></h1>
-    <p class="hero-sub">Drag the vectors. Click the words. Sample the tokens.</p>
-    <a class="btn-primary" href="#step-1">Begin</a>
-    <div class="hero-flow" aria-hidden="true">
-      <span>text</span><span class="arr">→</span>
-      <span>tokens</span><span class="arr">→</span>
-      <span>vectors</span><span class="arr">→</span>
-      <span>attention</span><span class="arr">→</span>
-      <span>next&nbsp;token</span>
+  <div class="hero-board">
+    <div class="hero-title">
+      <h1>Inside the<br><span class="acc-blue">Transformer</span></h1>
+      <p class="hero-sub">You type a prompt. An answer types itself back. This is everything that happens in between — drag the vectors, click the words, sample the tokens.</p>
+      <div class="hero-flow" aria-hidden="true">
+        <span class="stage">text</span>
+        <span class="flow-arr"><svg width="26" height="12" viewBox="0 0 26 12" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><path d="M2 7.5 C 9 5.5, 15 5.5, 21 6.5 M16.5 3 L21.5 6.6 L16 9.8"/></svg></span>
+        <span class="stage">tokens</span>
+        <span class="flow-arr"><svg width="26" height="12" viewBox="0 0 26 12" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><path d="M2 7.5 C 9 5.5, 15 5.5, 21 6.5 M16.5 3 L21.5 6.6 L16 9.8"/></svg></span>
+        <span class="stage">vectors</span>
+        <span class="flow-arr"><svg width="26" height="12" viewBox="0 0 26 12" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><path d="M2 7.5 C 9 5.5, 15 5.5, 21 6.5 M16.5 3 L21.5 6.6 L16 9.8"/></svg></span>
+        <span class="stage">attention</span>
+        <span class="flow-arr"><svg width="26" height="12" viewBox="0 0 26 12" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><path d="M2 7.5 C 9 5.5, 15 5.5, 21 6.5 M16.5 3 L21.5 6.6 L16 9.8"/></svg></span>
+        <span class="stage payoff">next&nbsp;token</span>
+      </div>
+      <a class="btn-primary" href="#step-1">Begin</a>
     </div>
+    <nav class="hero-toc" aria-label="Contents">
+      <p class="hero-toc-title">Contents</p>
+      <ol>
+      <li><a href="#step-1"><i>1</i>Tokenization</a></li>
+      <li><a href="#step-2"><i>2</i>Embeddings</a></li>
+      <li><a href="#step-3"><i>3</i>Attention</a></li>
+      <li><a href="#step-4"><i>4</i>Depth</a></li>
+      <li><a href="#step-5"><i>5</i>The output</a></li>
+      <li><a href="#step-6"><i>6</i>Inference</a></li>
+      </ol>
+    </nav>
   </div>
 </header>
 
@@ -40,9 +56,10 @@
 <!-- ================= CH 1 : TOKENS ================= -->
 <section class="chapter" id="step-1">
   <div class="ch-head">
-    <span class="ch-num">Chapter 1 · Tokenization</span>
+    <span class="ch-num">Chapter <span class="n">1</span> · Tokenization</span>
     <h2>Text becomes <span class="acc-blue">tokens</span></h2>
   </div>
+  <p class="chat-tag"><b>The moment you press Enter,</b> your prompt is chopped into these pieces. The model never sees letters — which is why it can miscount the r's in "strawberry".</p>
 
   <div class="panel">
     <input id="tok-input" type="text" autocomplete="off" spellcheck="false"
@@ -64,9 +81,10 @@
 <!-- ================= CH 2 : EMBEDDINGS ================= -->
 <section class="chapter" id="step-2">
   <div class="ch-head">
-    <span class="ch-num">Chapter 2 · Embeddings</span>
+    <span class="ch-num">Chapter <span class="n">2</span> · Embeddings</span>
     <h2>Tokens become <span class="acc-blue">vectors</span></h2>
   </div>
+  <p class="chat-tag"><b>Next, each piece becomes a long list of numbers.</b> This is how the model "knows" that <i>cat</i> and <i>kitten</i> mean similar things — their numbers point in similar directions. Related words literally sit near each other.</p>
 
   <div class="panel">
     <div class="word-picker" id="embed-word-picker"></div>
@@ -85,9 +103,9 @@
 
   <div class="panel">
     <div class="plane-wrap">
-      <svg id="embed-map" viewBox="0 0 720 520" role="img" aria-label="Coordinate plane showing word embedding vectors"></svg>
+      <svg id="embed-map" viewBox="0 0 720 520" role="img" aria-label="Rotatable three-dimensional space showing word embedding vectors"></svg>
     </div>
-    <div class="readout" id="neighbor-readout">Drag any word.</div>
+    <div class="readout" id="neighbor-readout">Drag to rotate the space · hover a word for its coordinates and closest neighbours.</div>
     <div class="toggle-row">
       <span class="math">king − man + woman ≈ queen</span>
       <button class="link-btn" id="analogy-btn">draw it</button>
@@ -99,9 +117,10 @@
 <!-- ================= CH 3 : ATTENTION ================= -->
 <section class="chapter" id="step-3">
   <div class="ch-head">
-    <span class="ch-num">Chapter 3 · Attention</span>
+    <span class="ch-num">Chapter <span class="n">3</span> · Attention</span>
     <h2>Words <span class="acc-blue">look at each other</span></h2>
   </div>
+  <p class="chat-tag"><b>Here's the problem:</b> the word <i>bat</i> gets the exact same numbers whether you're talking baseball or caves. Attention is the fix — every word looks around at every other word, and context flows in to sharpen its meaning. Watch <i>it</i> switch targets when you change one word at the end.</p>
 
   <div class="panel">
     <div class="attn-controls">
@@ -132,9 +151,10 @@
 <!-- ================= CH 4 : THE STACK ================= -->
 <section class="chapter" id="step-4">
   <div class="ch-head">
-    <span class="ch-num">Chapter 4 · Depth</span>
+    <span class="ch-num">Chapter <span class="n">4</span> · Depth</span>
     <h2>Attention, <span class="acc-blue">stacked</span></h2>
   </div>
+  <p class="chat-tag"><b>That step happens dozens of times in a row.</b> When headlines say a model is "bigger", this is what got bigger — more layers, more numbers. Slide the controls and watch the parameter count explode.</p>
 
   <div class="panel">
     <div class="builder">
@@ -182,9 +202,10 @@
 <!-- ================= CH 5 : PREDICTION ================= -->
 <section class="chapter" id="step-5">
   <div class="ch-head">
-    <span class="ch-num">Chapter 5 · The output</span>
+    <span class="ch-num">Chapter <span class="n">5</span> · The output</span>
     <h2>A bet on the <span class="acc-blue">next token</span></h2>
   </div>
+  <p class="chat-tag"><b>The model never "decides" on one answer.</b> It bets on every possible next word at once, then rolls the dice. That's why regenerating gives you a different reply — and the temperature dial sets how daring the dice are.</p>
 
   <div class="panel">
     <div class="predict-prompt math">
@@ -209,9 +230,10 @@
 <!-- ================= CH 6 : LIVE INFERENCE ================= -->
 <section class="chapter" id="step-6">
   <div class="ch-head">
-    <span class="ch-num">Chapter 6 · Inference</span>
+    <span class="ch-num">Chapter <span class="n">6</span> · Inference</span>
     <h2>Watch it <span class="acc-blue">think</span>, live</h2>
   </div>
+  <p class="chat-tag"><b>Ever wonder why the reply streams in word by word?</b> Because it really is written one token at a time — the whole pipeline above runs again for every single word you watch appear. Press play and see the loop you've been chatting with.</p>
 
   <div class="panel">
     <div class="inf-topbar">
@@ -231,15 +253,9 @@
     </div>
 
     <div class="inf-machine">
-      <div class="inf-pipeline" id="inf-pipeline">
-        <div class="pipe-node" data-node="embed"><span>embed</span></div>
-        <div class="pipe-arrow">→</div>
-        <div class="pipe-node" data-node="b0"><span>block 1</span></div>
-        <div class="pipe-node" data-node="b1"><span>block 2</span></div>
-        <div class="pipe-node" data-node="b2"><span>block 3</span></div>
-        <div class="pipe-node" data-node="b3"><span>block 4</span></div>
-        <div class="pipe-arrow">→</div>
-        <div class="pipe-node" data-node="unembed"><span>unembed</span></div>
+      <div class="inf-stage-wrap">
+        <svg id="inf-stage" viewBox="0 0 720 300" role="img" aria-label="Token vectors flowing through attention and MLP blocks"></svg>
+        <div class="dim-note">each translucent cube is part of one block — the slices of an attention cube are its heads, an MLP's its weight matrices. two layers stand in for dozens.</div>
       </div>
       <div class="inf-dist" id="inf-dist"></div>
     </div>
@@ -274,5 +290,6 @@
 
 </main>
 <script src="js/app.js"></script>
+<script src="js/typewriter.js?v=2"></script>
 </body>
 </html>

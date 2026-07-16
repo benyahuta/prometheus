@@ -11,7 +11,7 @@
 
 <header class="deep-head">
   <a href="../index.html">← Inside the Transformer</a>
-  <span class="ch-num">Chapter 4 · Deep dive</span>
+  <span class="ch-num">Chapter <span class="n">4</span> · Deep dive</span>
 </header>
 
 <main class="deep-main">
@@ -19,8 +19,8 @@
     <h2>Residual streams &amp; <span class="acc-blue">MLPs</span></h2>
   </div>
 
-  <h3 class="sec-title">Nothing replaces the vector — everything adds to it</h3>
-  <p class="caption">a conveyor belt through the factory: every station adds a sticker; nobody repacks the box.</p>
+  <h3 class="sec-title">The same vector climbs all 96 layers, accumulating edits</h3>
+  <p class="caption">a token's vector is never replaced on its way up — each block computes a small correction and adds it. by the top, the vector is the original embedding plus hundreds of stacked edits: early layers tend to add grammar, later ones add meaning-in-context and even predictions.</p>
   <div class="formula">x ← x + Attention(x) &nbsp;&nbsp;&nbsp; x ← x + MLP(x)</div>
   <div class="panel">
     <div class="plot-wrap"><svg id="res-diagram" viewBox="0 0 720 190"></svg></div>
@@ -28,7 +28,7 @@
   </div>
 
   <h3 class="sec-title">Inside the MLP: expand, bend, contract</h3>
-  <p class="caption">attention gathered the gossip; now the MLP sits alone with each word and thinks it over. we pick up <b>exactly where chapter 3 ended</b>: X′ = the embeddings after attention's edit was added.</p>
+  <p class="caption">attention edited each vector using the <b>other</b> tokens; the MLP now transforms each vector <b>alone</b> — no information crosses between positions here. we pick up exactly where chapter 3 ended: X′ = the embeddings after attention's edit was added.</p>
   <div class="formula">MLP(X′) = GELU(X′·W<sub>up</sub>) · W<sub>down</sub> &nbsp;&nbsp;<span style="color:var(--faint);font-style:normal;font-size:.85rem">4 dims → 8 neurons → 4 dims</span></div>
 
   <div class="panel">
@@ -52,8 +52,8 @@
     <p class="caption">same rule as attention: <b>add, never replace</b>. X″ rolls on to the next block, where the whole dance — attention, then MLP — repeats.</p>
   </div>
 
-  <h3 class="sec-title">Where the parameters live</h3>
-  <p class="caption">the model’s floor plan: who actually gets the square footage.</p>
+  <h3 class="sec-title">Where the learned numbers live</h3>
+  <p class="caption">of everything the vector passes through, the MLPs hold about two-thirds of all parameters — attention decides <b>where information moves</b>, but most of what the model <b>knows</b> is stored in MLP weights.</p>
   <div class="panel">
     <div class="slider-row">
       <label for="pb-layers">layers <span class="math">L</span></label>
@@ -76,6 +76,7 @@
 </main>
 
 <script src="../js/deep.js"></script>
+<script src="../js/typewriter.js?v=2"></script>
 <script>
 /* --- residual stream diagram --- */
 (function () {

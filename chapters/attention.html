@@ -11,27 +11,27 @@
 
 <header class="deep-head">
   <a href="../index.html">← Inside the Transformer</a>
-  <span class="ch-num">Chapter 3 · Deep dive</span>
+  <span class="ch-num">Chapter <span class="n">3</span> · Deep dive</span>
 </header>
 
 <main class="deep-main">
   <div class="ch-head">
     <h2>Queries, Keys &amp; <span class="acc-blue">Values</span></h2>
-    <p class="caption">“the robot ate apples”, computed for real — <b>scroll, and the multiplications happen in front of you</b>.</p>
+    <p class="caption">the word <b>bat</b> starts with the exact same vector in “the bat left the cave” and “he dropped the bat” — chapter 2's embeddings know the word, not the sentence. attention is the machinery that lets the neighbours fix that. below: “the robot ate apples”, computed for real — <b>scroll, and the multiplications happen in front of you</b>.</p>
   </div>
 
   <div class="cards">
-    <div class="concept-card" style="border-left-color:var(--blue)">
+    <div class="concept-card">
       <div class="cc-title" style="color:var(--blue)">Q — query</div>
-      <div class="cc-body">“what am I looking for?”</div>
+      <div class="cc-body">the question this word asks the others — “anyone here my subject?”</div>
     </div>
-    <div class="concept-card" style="border-left-color:var(--green)">
+    <div class="concept-card">
       <div class="cc-title" style="color:var(--green)">K — key</div>
-      <div class="cc-body">“what do I contain?”</div>
+      <div class="cc-body">its standing answer to such questions — “I'm a noun, doing the action”</div>
     </div>
-    <div class="concept-card" style="border-left-color:var(--gold)">
+    <div class="concept-card">
       <div class="cc-title" style="color:var(--gold)">V — value</div>
-      <div class="cc-body">“what do I hand over if you attend to me?”</div>
+      <div class="cc-body">the nudge it contributes when question and answer match</div>
     </div>
   </div>
 
@@ -41,8 +41,8 @@
     <span style="color:var(--gold);font-style:italic">V</span>
   </div>
 
-  <h3 class="sec-title">① the input <span class="math">X</span></h3>
-  <p class="caption">four tokens arrive as raw material — each is just a list of numbers, meaning nothing yet.</p>
+  <h3 class="sec-title">① the input <span class="math">X</span>: one vector per token, and none of them know each other yet</h3>
+  <p class="caption">each row is one token's vector — everything that token currently "knows". right now <b>ate</b>'s vector contains nothing about <b>robot</b>. this whole page is one mechanism for copying information between these rows.</p>
   <div class="panel">
     <div class="mat-row">
       <div class="mat-fig"><div class="mat-label">X&nbsp;&nbsp;(4 tokens × 4 dims)</div><div class="matrix" id="mat-x"></div><div class="mat-sub">one row per token — dense and messy, like real embeddings</div></div>
@@ -50,8 +50,8 @@
     <p class="caption">4 dims is for legibility — GPT-3's rows are <b>12,288 numbers long</b>. same picture, ~3,000× wider.</p>
   </div>
 
-  <h3 class="sec-title">② project: <span style="color:var(--blue)">Q</span> = X·W<sub>Q</sub></h3>
-  <p class="caption">three learned lenses read the <b>same</b> embedding and extract three different things: a question, an advertisement, a payload.</p>
+  <h3 class="sec-title">② each vector is projected into three roles: <span style="color:var(--blue)">Q</span> = X·W<sub>Q</sub></h3>
+  <p class="caption">multiplying by a learned matrix makes a smaller vector that keeps only one kind of information from the embedding. think of grammar: an adjective's key is shaped to answer a noun's “anything describing me just before?”, and here <b>ate</b>'s query asks “who did this?” — Q is <b>the question a token asks</b>, K is <b>its standing answer</b>, V is <b>the nudge it will contribute</b> if the two line up. (in GPT-3 these projections drop each 12,288-number vector into a 128-dimensional question-and-answer space.)</p>
   <div class="panel">
     <div id="anim-q"></div>
   </div>
@@ -63,19 +63,19 @@
     <p class="caption">W<sub>Q</sub>, W<sub>K</sub>, W<sub>V</sub> are <b>the learned weights</b> — training tunes these numbers; everything else on this page is pure arithmetic.</p>
   </div>
 
-  <h3 class="sec-title">③ scores: every query × every key</h3>
-  <p class="caption">speed dating: every word’s question meets every word’s advertisement, and the dot product scores the match.</p>
+  <h3 class="sec-title">③ score every pair: which tokens should copy from which?</h3>
+  <p class="caption">the dot product Q<sub>i</sub>·K<sub>j</sub> measures how well token <span class="math">j</span>'s answer fits token <span class="math">i</span>'s question — when the two vectors point the same way, the score is large and we say <b>i attends to j</b>. a high score is a decision being made: information will flow from j into i two steps from now.</p>
   <div class="panel">
     <div id="anim-s"></div>
     <div class="toggle-row" style="margin-top:14px">
       <button class="pill-toggle active" id="mask-toggle">causal mask: on</button>
-      <span class="dim-note">no peeking at the future — masked cells become −∞</span>
+      <span class="dim-note">masked cells become −∞, so softmax sends them to exactly 0</span>
     </div>
-    <p class="caption">each cell of S is <b>one dot product</b>: a row of Q (what word <span class="math">i</span> seeks) against a column of K<sup>T</sup> (what word <span class="math">j</span> offers), shrunk by √d<sub>k</sub>. watch row <b>ate</b> spike at column <b>robot</b>.</p>
+    <p class="caption">read row <b>ate</b> as: "how much should <b>ate</b>'s vector absorb from each other token?" the spike at column <b>robot</b> means the model decided <i>who did the eating</i> is the information this verb is missing. <b>why the mask?</b> training predicts the next token at <i>every</i> position of the sentence at once — one sentence, many little exams — so no word may take hints from words that come after it, or the exam is rigged. (÷√d<sub>k</sub> just keeps scores in a range softmax handles well.)</p>
   </div>
 
-  <h3 class="sec-title">④ softmax each row → attention weights</h3>
-  <p class="caption">scores become shares: each row’s raw match scores turn into percentages of attention, summing to 100%.</p>
+  <h3 class="sec-title">④ softmax turns each row into a mixing recipe</h3>
+  <p class="caption">each row of A is now the recipe for rebuilding one token's vector: "to update <b>ate</b>, take 61% from robot, 24% from itself, 15% from the…". softmax guarantees the parts are positive and sum to 1, so the next step is a legitimate weighted average.</p>
   <div class="panel">
     <div class="mat-row">
       <div class="mat-fig"><div class="mat-label">A = softmax(S)</div><div class="matrix" id="mat-a"></div><div class="mat-sub">each row sums to 100% · −∞ becomes exactly 0</div></div>
@@ -83,31 +83,31 @@
     <p class="readout" id="attn-read"></p>
   </div>
 
-  <h3 class="sec-title">⑤ output: a weighted mix of values</h3>
-  <p class="caption">the payout: each word walks away with a blend of everyone’s payloads, in proportion to the attention it paid.</p>
+  <h3 class="sec-title">⑤ the information actually moves: O = A·V</h3>
+  <p class="caption">this is the step where vectors change hands. each token's output row is the weighted average of <b>everyone's</b> V vectors, using its recipe from step ④ — so <b>ate</b>'s new vector now literally contains a piece of <b>robot</b>'s content. information has crossed between positions for the first time.</p>
   <div class="panel">
     <div id="anim-o"></div>
     <p class="readout" id="o-story"></p>
   </div>
 
-  <h3 class="sec-title">⑥ translate back: ΔX = O·W<sub>O</sub></h3>
-  <p class="caption">the head did its thinking in a compact 3-dim dialect. <b>W<sub>O</sub> is the translator</b> — it turns the head's verdict back into the stream's full 4-dim language, producing a <b>suggested edit</b> (ΔX) for every token.</p>
+  <h3 class="sec-title">⑥ shape the mix into an edit: ΔX = O·W<sub>O</sub></h3>
+  <p class="caption">the blended vectors live in the head's small 3-dim space and can't be added to the 4-dim embeddings yet. W<sub>O</sub> maps them back to full width — and what comes out is, for each token, an <b>edit vector</b> ΔX: "given what i just gathered from the other tokens, move my embedding <i>this way</i>."</p>
   <div class="panel">
     <div id="anim-wo"></div>
   </div>
 
-  <h3 class="sec-title">⑦ nothing is overwritten: X′ = X + ΔX</h3>
-  <p class="caption">the edit is <b>added on top</b> of what each token already knew — the original embedding survives underneath. this "always add, never replace" habit is the residual stream, and it's why 96-layer stacks still train.</p>
+  <h3 class="sec-title">⑦ the edit is added onto each vector: X′ = X + ΔX</h3>
+  <p class="caption">each token's vector is nudged, not rebuilt — picture the 3-D map from chapter 2: adding ΔX <b>slides the point through that space</b>, from generic <i>ate</i> toward <i>ate-by-a-robot</i>. the old vector still encodes "a verb, past tense" underneath; the context is layered on top. this add-never-replace habit is the <b>residual stream</b>, and it's why 96 layers of edits can stack without erasing each other. by the last word of a long story, enough edits have piled up that one vector can carry whatever the next word hinges on — even a clue from the first page.</p>
   <div class="panel">
     <div id="anim-add"></div>
   </div>
 
-  <h3 class="sec-title">⑧ many heads, in parallel</h3>
-  <p class="caption">a panel of specialists reading the same sentence — one tracks who-did-what, one watches the previous word, one guards the start. each has its own lenses (W<sub>Q</sub>, W<sub>K</sub>, W<sub>V</sub>).</p>
+  <h3 class="sec-title">⑧ many heads propose different nudges at once</h3>
+  <p class="caption">each head runs this entire page independently, with its own W<sub>Q</sub>, W<sub>K</sub>, W<sub>V</sub> — one asks grammar questions (subject→verb), another tracks each token's left neighbour, another watches the sentence start. every head proposes its own ΔX, and the proposals <b>simply add together</b> onto the same vectors.</p>
   <div class="panel">
     <div class="mat-row" id="heads-row"></div>
     <div class="formula" style="margin-bottom:0">MultiHead(X) = concat(head<sub>1</sub>, …, head<sub>h</sub>) · W<sub>O</sub></div>
-    <p class="caption">each head has its own W<sub>Q</sub>, W<sub>K</sub>, W<sub>V</sub> — its own thing to hunt for. GPT-3 runs 96 of these per layer, at every layer, for every token, as one batched matrix multiply.</p>
+    <p class="caption">in practice the per-head W<sub>O</sub> pieces are stapled side-by-side into one big output matrix for the whole block. the scale of this in GPT-3: <b>96 heads</b> per layer × <b>96 layers</b>, each with its own 128-dim question-and-answer space — attention alone is ~58 billion of the 175 billion parameters, all running as one batched matrix multiply.</p>
   </div>
 
   <nav class="pager">
@@ -117,6 +117,7 @@
 </main>
 
 <script src="../js/deep.js"></script>
+<script src="../js/typewriter.js?v=2"></script>
 <script>
 const TOKENS = ["the", "robot", "ate", "apples"];
 
@@ -187,7 +188,7 @@ matMulAnim("#anim-k", {
   cLabel: "<span style='color:var(--green)'>K</span>", cSub: "what each token offers",
   maxA: 1, maxB: 3.2, maxC: 2.2, stepMs: 300,
   termText: projTermText("W<sub>K</sub>", "K"),
-  doneText: "each row of K: that token's <b>advertisement</b>.",
+  doneText: "each row of K: that token's <b>standing answer</b>.",
 });
 matMulAnim("#anim-v", {
   A: X, B: WV, aRows: TOKENS,
@@ -195,7 +196,7 @@ matMulAnim("#anim-v", {
   cLabel: "<span style='color:var(--gold)'>V</span>", cSub: "what each token hands over",
   maxA: 1, maxB: 2.2, maxC: 1.3, stepMs: 300,
   termText: projTermText("W<sub>V</sub>", "V"),
-  doneText: "each row of V: the <b>payload</b> delivered if this token wins attention.",
+  doneText: "each row of V: the <b>nudge</b> this token contributes if it wins attention.",
 });
 
 /* ---------- step ③: S = QKᵀ/√dk, every dot product animated ---------- */

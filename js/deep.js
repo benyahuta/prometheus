@@ -6,8 +6,8 @@ const $$ = (sel) => [...document.querySelectorAll(sel)];
 const C = {
   blue: "#58c4dd", red: "#fc6255", yellow: "#f4d345", green: "#83c167",
   teal: "#5cd0b3", purple: "#9a72ac", gold: "#f0ac5f",
-  ink: "#e8eaf0", muted: "#8b93a7", faint: "#5c6478",
-  grid: "#1a2233", axis: "#39435c", bg: "#0b0e14", panel2: "#151b28",
+  ink: "#eceee8", muted: "#9aa79c", faint: "#7b8578",
+  grid: "#1c251d", axis: "#3c473d", bg: "#0d120e", panel2: "#171e18",
 };
 
 function alpha(hex, a) {
