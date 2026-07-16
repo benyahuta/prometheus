@@ -730,39 +730,42 @@ function svgEl(tag, attrs = {}, text) {
     const tower = $("#tower");
     const H = +heads.value;
     tower.innerHTML = "";
-    const shown = Math.min(L, 12);
-    // each block = attention row (one segment per head) over an MLP bar
-    const blockH = Math.max(9, Math.floor(280 / shown) - 5);
-    const attnH = Math.max(5, Math.round(blockH * 0.58));
-    const mlpH = Math.max(3, blockH - attnH - 2);
-    const width = Math.min(100, 38 + Math.log2(D) * 5.5) + "%";
-    const segs = Math.min(H, 32);
-    for (let i = 0; i < shown; i++) {
+    // every layer renders — they get thinner as L grows, never dropped
+    const avail = 296;
+    const outerGap = L > 24 ? 1 : 3;
+    const innerGap = L > 24 ? 1 : 2;
+    tower.style.gap = outerGap + "px";
+    const layerH = Math.max(2, (avail - outerGap * (L - 1)) / L - innerGap);
+    const attnH = Math.max(1, layerH * 0.58);
+    const mlpH = Math.max(1, layerH - attnH);
+    // width tracks log2(d): 64 → 30%, 12,288 → 95% (no early saturation)
+    const width = (30 + (Math.log2(D) - 6) * 8.57).toFixed(1) + "%";
+    // every head renders — one stripe per head, drawn as a gradient so
+    // 96 layers × 96 heads stays cheap
+    const p = 100 / H;
+    const stripes = H === 1
+      ? "rgba(88,196,221,0.8)"
+      : `repeating-linear-gradient(90deg, rgba(88,196,221,0.8) 0, rgba(88,196,221,0.8) calc(${p.toFixed(4)}% - 1px), transparent calc(${p.toFixed(4)}% - 1px), transparent ${p.toFixed(4)}%)`;
+    for (let i = 0; i < L; i++) {
       const layer = document.createElement("div");
       layer.className = "tower-layer";
       layer.style.width = width;
-      layer.style.animationDelay = i * 15 + "ms";
+      layer.style.gap = innerGap + "px";
+      layer.style.animationDelay = Math.min(i * 15, 400) + "ms";
       const attn = document.createElement("div");
       attn.className = "attn-row";
-      attn.style.height = attnH + "px";
-      for (let s = 0; s < segs; s++) attn.appendChild(document.createElement("div")).className = "head-seg";
+      attn.style.height = attnH.toFixed(1) + "px";
+      attn.style.background = stripes;
       attn.title = H + " attention heads";
       const mlp = document.createElement("div");
       mlp.className = "mlp-row";
-      mlp.style.height = mlpH + "px";
+      mlp.style.height = mlpH.toFixed(1) + "px";
       mlp.title = "feed-forward network (MLP)";
       layer.append(attn, mlp);
       tower.appendChild(layer);
     }
-    if (L > shown) {
-      const dots = document.createElement("div");
-      dots.className = "tower-ellipsis";
-      dots.textContent = "⋮";
-      tower.appendChild(dots); // column-reverse → renders at the top
-    }
-    $("#tower-count").textContent = L + (L > shown ? ` (showing ${shown})` : "");
-    const capNote = H > segs ? ` — head segments capped at ${segs} for legibility` : "";
-    tower.title = `${L} blocks × (${H}-head attention + MLP)` + capNote;
+    $("#tower-count").textContent = L;
+    tower.title = `${L} blocks × (${H}-head attention + MLP)`;
   }
 
   [layers, heads, dmodel].forEach((s) => s.addEventListener("input", render));

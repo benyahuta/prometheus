@@ -431,20 +431,10 @@ input[type="range"] {
   flex: 0 0 auto;
   margin-inline: auto;
 }
-.attn-row { display: flex; gap: 1px; }
-.head-seg {
-  flex: 1; min-width: 1px;
-  background: rgba(88, 196, 221, 0.8);
-  border-radius: 1.5px;
-}
+.attn-row { border-radius: 1.5px; }
 .mlp-row {
   background: rgba(240, 172, 95, 0.75);
   border-radius: 1.5px;
-}
-.tower-ellipsis {
-  color: var(--faint); font-size: 0.95rem; line-height: 1;
-  text-align: center; letter-spacing: 0.2em;
-  flex: 0 0 auto; padding: 2px 0;
 }
 @keyframes rise { from { transform: translateY(8px); opacity: 0; } to { transform: none; opacity: 1; } }
 .tower-caption { font-family: var(--serif); font-style: italic; font-size: 0.9rem; color: var(--faint); margin-top: 10px; }
