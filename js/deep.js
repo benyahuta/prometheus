@@ -62,6 +62,9 @@ function matrixEl(container, M, opts = {}) {
   const nc = M[0].length;
   const hasRows = !!opts.rows, hasCols = !!opts.cols;
   el.style.gridTemplateColumns = `repeat(${nc + (hasRows ? 1 : 0)}, auto)`;
+  // token-labeled rows with no column heads are a stack of individual
+  // per-token vectors, not one entangled matrix — let the rows breathe
+  el.classList.toggle("vec-rows", hasRows && !hasCols);
   const cw = opts.cellW || 44, ch = opts.cellH || 32;
   const mk = (cls, text) => {
     const d = document.createElement("div");
