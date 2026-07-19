@@ -143,32 +143,30 @@ renderWE();
   let swapped = false, peOn = false;
   const peVec = (i) => Array.from({ length: 6 }, (_, d) => 0.5 * (d % 2 ? Math.cos(i / Math.pow(9, d / 6)) : Math.sin(i / Math.pow(9, d / 6))));
 
-  function bag(order) {
-    /* sum of token vectors (+ optional position vectors) — what attention "sees" as a set */
-    const sum = new Array(6).fill(0);
-    order.forEach((w, i) => {
-      W[w].forEach((v, d) => (sum[d] += v));
-      if (peOn) peVec(i).forEach((v, d) => (sum[d] += v));
-    });
-    return sum.map((v) => v / order.length);
+  /* one row-vector per token (plus its position vector when PE is on) */
+  function rowsFor(order) {
+    return order.map((w, i) =>
+      peOn ? W[w].map((v, d) => v + peVec(i)[d]) : [...W[w]]);
   }
+  /* attention reads the context as a SET of vectors — compare as sets */
+  const asSet = (rows) => rows.map((r) => r.map((v) => v.toFixed(4)).join(",")).sort().join("|");
 
   function render() {
     const a = ["dog", "bites", "man"];
     const b = swapped ? ["man", "bites", "dog"] : ["dog", "bites", "man"];
     $("#sent-a-label").textContent = "“" + a.join(" ") + "”";
     $("#sent-b-label").textContent = "“" + b.join(" ") + "”";
-    const va = bag(a), vb = bag(b);
-    matrixEl("#sent-a", [va], { max: 1, cellW: 40, cellH: 28, fmt: (v) => v.toFixed(1) });
-    matrixEl("#sent-b", [vb], { max: 1, cellW: 40, cellH: 28, fmt: (v) => v.toFixed(1) });
-    const same = va.every((v, i) => Math.abs(v - vb[i]) < 1e-9);
+    const ra = rowsFor(a), rb = rowsFor(b);
+    matrixEl("#sent-a", ra, { rows: a, max: 1.4, cellW: 34, cellH: 24, fmt: (v) => v.toFixed(1) });
+    matrixEl("#sent-b", rb, { rows: b, max: 1.4, cellW: 34, cellH: 24, fmt: (v) => v.toFixed(1) });
+    const same = asSet(ra) === asSet(rb);
     $("#eq-sign").textContent = same ? "=" : "≠";
     $("#eq-sign").style.color = same ? C.red : C.green;
     $("#order-read").innerHTML = same
       ? (swapped
-        ? `<b>identical</b> — without positions, “man bites dog” and “dog bites man” are the same bag of vectors. That's a problem.`
-        : `same sentence, same vectors — now press <b>swap</b>.`)
-      : `<b>different</b> — each word carried its position fingerprint in, so order survives.`;
+        ? `<b>identical as a set</b> — one vector per token, and the swap only reshuffled the rows. attention reads the context as a <b>bag of vectors</b>, so these two sentences are indistinguishable. That's a problem.`
+        : `one row-vector per token, same sentence on both sides — now press <b>swap</b>.`)
+      : `<b>different</b> — each token's row carried its position fingerprint in, so the two bags no longer match. order survives.`;
   }
   $("#swap-btn").addEventListener("click", () => { swapped = !swapped; render(); });
   $("#pe-btn").addEventListener("click", () => {
